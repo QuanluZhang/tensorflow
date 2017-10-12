@@ -20,6 +20,8 @@ limitations under the License.
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <stdio.h>
+#include <stdlib.h>
 
 #include "tensorflow/core/common_runtime/allocator_retry.h"
 #include "tensorflow/core/common_runtime/bfc_allocator.h"
@@ -58,6 +60,7 @@ class GPUMemAllocator : public SubAllocator {
 
   void* Alloc(size_t alignment, size_t num_bytes) override {
     void* ptr = nullptr;
+    printf("GPUMemAllocator::Alloc, alignment: %lu, num_bytes: %lu\n", alignment, num_bytes);
     if (num_bytes > 0) {
       ptr = stream_exec_->AllocateArray<char>(num_bytes).opaque();
     }
@@ -65,6 +68,7 @@ class GPUMemAllocator : public SubAllocator {
   }
 
   void Free(void* ptr, size_t num_bytes) override {
+    printf("GPUMemAllocator::Free, num_bytes: %lu\n", num_bytes);
     if (ptr != nullptr) {
       gpu::DeviceMemoryBase gpu_ptr(ptr);
       stream_exec_->Deallocate(&gpu_ptr);

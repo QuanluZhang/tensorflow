@@ -38,6 +38,7 @@ GPUcudaMallocAllocator::~GPUcudaMallocAllocator() { delete base_allocator_; }
 void* GPUcudaMallocAllocator::AllocateRaw(size_t alignment, size_t num_bytes) {
 #ifdef GOOGLE_CUDA
   // allocate with cudaMalloc
+  printf("GPUcudaMallocAllocator::AllocateRaw, alignment: %lu, num_bytes: %lu\n", alignment, num_bytes);
   gpu::cuda::ScopedActivateExecutorContext scoped_activation{stream_exec_};
   CUdeviceptr rv = 0;
   CUresult res = cuMemAlloc(&rv, num_bytes);
@@ -53,6 +54,7 @@ void* GPUcudaMallocAllocator::AllocateRaw(size_t alignment, size_t num_bytes) {
 void GPUcudaMallocAllocator::DeallocateRaw(void* ptr) {
 #ifdef GOOGLE_CUDA
   // free with cudaFree
+  printf("GPUcudaMallocAllocator::DeAllocateRaw\n");
   CUresult res = cuMemFree(reinterpret_cast<CUdeviceptr>(ptr));
   if (res != CUDA_SUCCESS) {
     LOG(ERROR) << "cuMemFree failed to free " << ptr;
