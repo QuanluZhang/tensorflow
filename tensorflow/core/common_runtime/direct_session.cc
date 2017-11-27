@@ -1262,6 +1262,7 @@ Status DirectSession::CreateGraphs(
     std::unique_ptr<FunctionLibraryDefinition>* flib_def,
     RunStateArgs* run_state_args, DataTypeVector* input_types,
     DataTypeVector* output_types) {
+  printf("DirectSession::CreateGraphs\n");
   mutex_lock l(graph_def_lock_);
   std::unique_ptr<SimpleClientGraph> client_graph;
 
@@ -1357,6 +1358,7 @@ Status DirectSession::CreateGraphs(
   for (const auto& partition : partitions) {
     const string local_partition_name =
         DeviceNameUtils::LocalName(partition.first);
+    printf("local_partition_name: %s\n", local_partition_name.c_str());
     if (std::count(device_names.begin(), device_names.end(),
                    local_partition_name) == 0) {
       return errors::InvalidArgument(

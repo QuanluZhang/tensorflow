@@ -85,6 +85,7 @@ BFCAllocator::Chunk* BFCAllocator::ChunkFromHandle(ChunkHandle h) {
 }
 
 bool BFCAllocator::Extend(size_t rounded_bytes) {
+  //printf("BFCAllocator::Extend, rounded_bytes %lu\n", rounded_bytes);
   size_t available_bytes = memory_limit_ - total_region_allocated_bytes_;
   // Rounds available_bytes down to the nearest multiple of kMinAllocationSize.
   available_bytes = (available_bytes / kMinAllocationSize) * kMinAllocationSize;
@@ -168,6 +169,7 @@ bool BFCAllocator::Extend(size_t rounded_bytes) {
 }
 
 BFCAllocator::ChunkHandle BFCAllocator::AllocateChunk() {
+  //printf("BFCAllocator::AllocateChunk\n");
   if (free_chunks_list_ != kInvalidChunkHandle) {
     ChunkHandle h = free_chunks_list_;
     Chunk* c = ChunkFromHandle(h);
@@ -181,12 +183,14 @@ BFCAllocator::ChunkHandle BFCAllocator::AllocateChunk() {
 }
 
 void BFCAllocator::DeallocateChunk(ChunkHandle h) {
+  //printf("BFCAllocator::DeallocateChunk\n");
   Chunk* c = ChunkFromHandle(h);
   c->next = free_chunks_list_;
   free_chunks_list_ = h;
 }
 
 void* BFCAllocator::AllocateRaw(size_t unused_alignment, size_t num_bytes) {
+  //printf("BFCAllocator::AllocateRaw, unused_alignment %lu, num_bytes %lu\n", unused_alignment, num_bytes);
   // Fast path: Try once to allocate without getting the retry_helper_ involved
   void* r = AllocateRawInternal(unused_alignment, num_bytes, false);
   if (r != nullptr) {
@@ -203,6 +207,7 @@ void* BFCAllocator::AllocateRaw(size_t unused_alignment, size_t num_bytes) {
 
 void* BFCAllocator::AllocateRaw(size_t unused_alignment, size_t num_bytes,
                                 const AllocationAttributes& allocation_attr) {
+  //printf("BFCAllocator::AllocateRaw, unused_alignment %lu, num_bytes %lu, allocation_attr\n", unused_alignment, num_bytes);
   if (allocation_attr.no_retry_on_failure) {
     // Return immediately upon the first failure if this is for allocating an
     // optional scratch space.
@@ -369,6 +374,7 @@ void BFCAllocator::SplitChunk(BFCAllocator::ChunkHandle h, size_t num_bytes) {
 }
 
 void BFCAllocator::DeallocateRaw(void* ptr) {
+  //printf("BFCAllocator::DeallocateRaw, ptr %p\n", ptr);
   DeallocateRawInternal(ptr);
   retry_helper_.NotifyDealloc();
 }
@@ -424,6 +430,7 @@ void BFCAllocator::Merge(BFCAllocator::ChunkHandle h1,
 }
 
 void BFCAllocator::DeleteChunk(ChunkHandle h) {
+  //printf("BFCAllocator::DeleteChunk, h \n");
   // Delete h and cleanup all state
   Chunk* c = ChunkFromHandle(h);
   //  VLOG(4) << "Removing: " << c->ptr;

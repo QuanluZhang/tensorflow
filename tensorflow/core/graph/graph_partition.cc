@@ -21,6 +21,7 @@ limitations under the License.
 #include <unordered_set>
 #include <utility>
 #include <vector>
+#include <mutex>
 
 #include "tensorflow/core/framework/memory_types.h"
 #include "tensorflow/core/framework/node_def_builder.h"
@@ -37,6 +38,41 @@ limitations under the License.
 #include "tensorflow/core/lib/hash/hash.h"
 #include "tensorflow/core/platform/logging.h"
 #include "tensorflow/core/util/device_name_utils.h"
+#include <type_traits>
+#include <typeinfo>
+#ifndef _MSC_VER
+#   include <cxxabi.h>
+#endif
+#include <memory>
+#include <string>
+#include <cstdlib>
+
+template <class T>
+std::string
+type_name()
+{
+    typedef typename std::remove_reference<T>::type TR;
+    std::unique_ptr<char, void(*)(void*)> own
+           (
+#ifndef _MSC_VER
+                abi::__cxa_demangle(typeid(TR).name(), nullptr,
+                                           nullptr, nullptr),
+#else
+                nullptr,
+#endif
+                std::free
+           );
+    std::string r = own != nullptr ? own.get() : typeid(TR).name();
+    if (std::is_const<TR>::value)
+        r += " const";
+    if (std::is_volatile<TR>::value)
+        r += " volatile";
+    if (std::is_lvalue_reference<T>::value)
+        r += "&";
+    else if (std::is_rvalue_reference<T>::value)
+        r += "&&";
+    return r;
+}
 
 namespace tensorflow {
 
@@ -150,6 +186,83 @@ bool IsDstInputOnHost(const Edge* edge, const GraphInfo& info) {
     return dst_it->second == HOST_MEMORY;
   }
   return true;
+}
+bool IsValidTensorShape(const Edge* edge, bool &is_static) {
+  Node* src = edge->src();
+  int src_port = edge->src_output();
+  DataType dtype = EdgeType(edge);
+  if (!DataTypeCanUseMemcpy(dtype)) {
+    is_static = false;
+    return false;
+  }
+  
+  is_static = false;
+  std::vector<TensorShapeProto> shape_attrs;
+  const char* kAttrName = "_output_shapes";
+  if (!GetNodeAttr(src->def(), kAttrName, &shape_attrs).ok()) {
+    // No _output_shapes attribute 
+    return false;
+  }
+  if (shape_attrs.size() != src->num_outputs()) {
+      // Invalid outputs nubmer
+      return false;
+  }
+
+  const TensorShapeProto& proto = shape_attrs[src_port];
+  int num_elements = 1;
+  is_static = true;
+  for (const auto& d : proto.dim()) {
+    if (d.size() < 0) {
+      is_static = false;
+      return true;
+    }
+    num_elements *= d.size();
+  }
+
+  if (num_elements > 0) {
+    // we known the tensor shape before run
+    return true;
+  } else {
+    // the shape includes dim size of 0, invalid
+    return false;
+  }
+}
+// wencong: output infer shape
+// assume IsValidTensorShape return true
+int GetValidTensorShape(const Edge* edge) {
+  Node* src = edge->src();
+  int src_port = edge->src_output();
+  DataType dtype = EdgeType(edge);
+  if (!DataTypeCanUseMemcpy(dtype)) {
+    //is_static = false;
+    //return false;
+  }
+  
+  //is_static = false;
+  std::vector<TensorShapeProto> shape_attrs;
+  const char* kAttrName = "_output_shapes";
+  if (!GetNodeAttr(src->def(), kAttrName, &shape_attrs).ok()) {
+    // No _output_shapes attribute 
+    //return false;
+  }
+  if (shape_attrs.size() != src->num_outputs()) {
+      // Invalid outputs nubmer
+      //return false;
+  }
+
+  const TensorShapeProto& proto = shape_attrs[src_port];
+  int num_elements = 1;
+  //is_static = true;
+  for (const auto& d : proto.dim()) {
+    if (d.size() < 0) {
+      //is_static = false;
+      //return true;
+      num_elements = -1;
+      return num_elements;
+    }
+    num_elements *= d.size();
+  }
+  return num_elements;
 }
 
 // Add an input to dst that comes from the "src_slot" output of the
@@ -896,11 +1009,128 @@ Status AddControlEdges(const PartitionOptions& opts,
   return Status::OK();
 }
 
+void DumpTensorShape(const Edge *edge, FILE *dump_file_comm) {
+  int element_num = GetValidTensorShape(edge);
+  Node *the_src = edge->src();
+  Node *the_dst = edge->dst();
+  int the_src_port = edge->src_output();
+  DataType dt = the_src->output_type(the_src_port);
+  int element_size = 0;
+  switch(dt){
+    case tensorflow::DataType::DT_FLOAT : {
+      element_size = 4;
+      break;
+    }
+    case tensorflow::DataType::DT_DOUBLE : {
+      element_size = 8;
+      break;
+    }
+    case tensorflow::DataType::DT_INT32 : {
+      element_size = 4;
+      break;
+    }
+    case tensorflow::DataType::DT_UINT8 : {
+      element_size = 1;
+      break;
+    }
+    case tensorflow::DataType::DT_INT16 : {
+      element_size = 2;
+      break;
+    }
+    case tensorflow::DataType::DT_INT8 : {
+      element_size = 1;
+      break;
+    }
+    case tensorflow::DataType::DT_STRING : {
+      element_size = 0;
+      printf("[DataType] DT_STRING\n");
+      break;
+    }
+    case tensorflow::DataType::DT_COMPLEX64 : {
+      element_size = 0;
+      printf("[DataType] DT_COMPLEX64\n");
+      break;
+    }
+    case tensorflow::DataType::DT_INT64 : {
+      element_size = 8;
+      break;
+    }
+    case tensorflow::DataType::DT_BOOL : {
+      element_size = 1;
+      printf("[DataType] DT_BOOL\n");
+      break;
+    }
+    default: {
+      element_size = 0;
+      printf("unknown DataType: %d\n", dt);
+    }
+  }
+
+  fprintf(dump_file_comm,"Op[%d->%d] Name[%s -> %s] Device[%s->%s] size: %d, #: %d\n", the_src->id(), the_dst->id(), the_src->name().data(), the_dst->name().data(), the_src->assigned_device_name().data(), the_dst->assigned_device_name().data(), element_size, element_num);
+}
+void DumpComputationNode(int cur_times, FILE *dump_file_comp, const Node *dst, std::vector<const Edge*> &inputs) {
+  //if (dst->type_string() == "Conv2D" || dst->type_string() == "BiasAdd" || dst->type_string() == "MatMul") {
+  if (dst->type_string() != "NoOp") {
+    //if (cur_times == 9) {
+    //  printf("dump computation node : %s", dst->type_string().data());
+    //}
+    fprintf(dump_file_comp, "[%d: %s: %s]\n", dst->id(), dst->type_string().data(), dst->assigned_device_name().data());
+    //fprintf(dump_file_comp, "[%s: %s]\n", dst->type_string().data(), dst->assigned_device_name().data());
+    int cnt = 0;
+    for (const Edge* edge : inputs) {
+      Node *src = edge->src();
+      int src_port = edge->src_output();
+      std::vector<TensorShapeProto> shape_attrs;
+      const char* kAttrName = "_output_shapes";
+      bool flag = true;
+      if (!GetNodeAttr(src->def(), kAttrName, &shape_attrs).ok()) {
+        // No _output_shapes attribute 
+        fprintf(dump_file_comp, "[%s<%d>] no _output_shapes attribute", src->type_string().data(), src->id());
+        flag = false;
+        //return false;
+      }
+      if (flag){
+        const TensorShapeProto& proto = shape_attrs[src_port];
+        //proto.DebugString();
+        //printf("[%d: %s: %s]\n", dst->id(), dst->type_string().data(), dst->assigned_device_name().data());
+        //TensorShape t_test = TensorShape(proto);
+        //t_test.DebugString();
+        fprintf(dump_file_comp, "[input %d] ", cnt++);
+        for (const auto& d : proto.dim()) {
+          fprintf(dump_file_comp, "%d, ", d.size());
+        }
+      }
+      fprintf(dump_file_comp, "\n");
+    }
+  }
+}
+static int partition_times(0);
+static std::mutex pt_mutex;
 Status Partition(const PartitionOptions& opts, Graph* g,
                  std::unordered_map<string, GraphDef>* partitions) {
+  printf("in Partition()\n");
+  int cur_times = 0;
   Status status;
   partitions->clear();
-
+  bool dump_info = true;
+  FILE *dump_file_comm = nullptr;
+  FILE *dump_file_comp = nullptr;
+  FILE *dump_file_graph = nullptr;
+  if (dump_info){
+    string dir = "/home/quzha/static_analysis/result/";
+    {
+      std::lock_guard<std::mutex> guard(pt_mutex);
+      cur_times = partition_times;
+      partition_times++;
+    }
+    string comm_file_name = dir + "communication_" + std::to_string(cur_times) + ".txt";
+    string comp_file_name = dir + "computation_" + std::to_string(cur_times) + ".txt";
+    string graph_file_name = dir + "graph_" + std::to_string(cur_times) + ".txt";
+    dump_file_comm = fopen(comm_file_name.data(), "w");
+    dump_file_comp = fopen(comp_file_name.data(), "w");
+    dump_file_graph = fopen(graph_file_name.data(), "w");
+  }
+  
   GraphInfo g_info;
   if (!opts.control_flow_added) {
     // Add the "code" for distributed execution of control flow. Code is
@@ -974,11 +1204,29 @@ Status Partition(const PartitionOptions& opts, Graph* g,
                                      (dst->num_inputs() - num_input_edges),
                                      " inputs for ", dst->name());
     }
+    if (dump_info) {
+      DumpComputationNode(cur_times, dump_file_comp, dst, inputs);
+    }
 
     // Process in order so that all data edges are added as inputs to
     // dst in Edge::dst_input() order.
     for (const Edge* edge : inputs) {
       const Node* src = edge->src();
+
+      // wencong : dump NcclAllReduce Op
+      if (dump_info) {
+        if (dst->type_string() == "NcclAllReduce") {
+          if (cur_times == 9) {
+            printf("dump all reduce\n");
+          }
+          bool is_static_shape = false;
+          bool is_valid = IsValidTensorShape(edge, is_static_shape);
+          if (is_valid && is_static_shape) {
+            DumpTensorShape(edge, dump_file_comm);
+          }
+        }
+      }
+
       if (!src->IsOp()) continue;  // Skip Sink/Source nodes.
 
       GraphDef* src_graph = &(*partitions)[opts.node_to_loc(src)];
@@ -1052,6 +1300,12 @@ Status Partition(const PartitionOptions& opts, Graph* g,
       } else {
         send_from.Reset(src->name(), edge->src_output(), EdgeType(edge));
       }
+      
+      bool is_static_shape = false;      
+      bool is_valid = false;
+      if (dump_info) {
+        is_valid = IsValidTensorShape(edge, is_static_shape);
+      }
 
       // Need to split edge by placing matching send/recv nodes on
       // the src/dst sides of the edge.
@@ -1063,6 +1317,16 @@ Status Partition(const PartitionOptions& opts, Graph* g,
       NodeDef* recv =
           AddRecv(opts, g_info, dst_graph, edge, &real_recv, &status);
       if (!status.ok()) return status;
+
+      // add send and recv successfully, dump the tensor shape
+      if (dump_info){
+        if (cur_times == 9) {
+          printf("dump communication shape\n");
+        }
+        if (is_valid && is_static_shape) {
+          DumpTensorShape(edge, dump_file_comm);
+        }
+      }
 
       // Fix up the control flow edge.
       // NOTE(yuanbyu): 'real_recv' must be the real recv node.
@@ -1139,7 +1403,30 @@ Status Partition(const PartitionOptions& opts, Graph* g,
       }
     }
   }
-
+  if (dump_info) {
+    if (cur_times == 9) {
+      printf("dump graph\n");
+    }
+    int nverts = g->num_node_ids();
+    for (int i=0;i<nverts;i++)
+    {
+      Node *node = g->FindNodeId(i);
+      fprintf(dump_file_graph, "[%d][%s][%s]", i, node->type_string().data(), node->assigned_device_name().data());
+      for (Node *out: node->out_nodes()) {
+        fprintf(dump_file_graph, "\t%d", out->id());
+      }
+      fprintf(dump_file_graph, "\n");
+    } 
+    if (dump_file_comm != nullptr) {
+      fclose(dump_file_comm);
+    }
+    if (dump_file_comp != nullptr) {
+      fclose(dump_file_comp);
+    }
+    if (dump_file_graph != nullptr) {
+      fclose(dump_file_graph);
+    }
+  }
   VLOG(1) << "Added send/recv: controls=" << num_control
           << ", data=" << num_data;
   return Status::OK();

@@ -128,10 +128,10 @@ def main(_):
   mnist = input_data.read_data_sets(FLAGS.data_dir, one_hot=True)
 
   # Create the model
-  x = tf.placeholder(tf.float32, [None, 784])
+  x = tf.placeholder(tf.float32, [50, 784])
 
   # Define loss and optimizer
-  y_ = tf.placeholder(tf.float32, [None, 10])
+  y_ = tf.placeholder(tf.float32, [50, 10])
 
   # Build the graph for the deep net
   y_conv, keep_prob = deepnn(x)
@@ -154,14 +154,23 @@ def main(_):
   train_writer = tf.summary.FileWriter(graph_location)
   train_writer.add_graph(tf.get_default_graph())
 
-  with tf.Session() as sess:
+  config = tf.ConfigProto()
+  config.gpu_options.per_process_gpu_memory_fraction = 0.4
+  config.graph_options.infer_shapes = True
+  with tf.Session(config=config) as sess:
+    train_writer = tf.summary.FileWriter('/tmp/mytrain_mnist', sess.graph)
+    print('start initialize')
     sess.run(tf.global_variables_initializer())
-    for i in range(20000):
+    print('finish initialize')
+    for i in range(10000):
       batch = mnist.train.next_batch(50)
       if i % 100 == 0:
+        print('start accuracy.eval')
         train_accuracy = accuracy.eval(feed_dict={
             x: batch[0], y_: batch[1], keep_prob: 1.0})
         print('step %d, training accuracy %g' % (i, train_accuracy))
+      print('batch:', batch[0].shape)
+      print('batch_y:', batch[1].shape)
       train_step.run(feed_dict={x: batch[0], y_: batch[1], keep_prob: 0.5})
 
     print('test accuracy %g' % accuracy.eval(feed_dict={

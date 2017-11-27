@@ -20,6 +20,8 @@ limitations under the License.
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <stdlib.h>
+#include <stdio.h>
 
 #include "tensorflow/core/common_runtime/allocator_retry.h"
 #include "tensorflow/core/common_runtime/visitable_allocator.h"
