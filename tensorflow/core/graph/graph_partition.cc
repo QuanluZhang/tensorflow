@@ -1085,7 +1085,7 @@ void DumpComputationNode(int cur_times, FILE *dump_file_comp, const Node *dst, s
       bool flag = true;
       if (!GetNodeAttr(src->def(), kAttrName, &shape_attrs).ok()) {
         // No _output_shapes attribute 
-        fprintf(dump_file_comp, "[%s<%d>] no _output_shapes attribute", src->type_string().data(), src->id());
+        fprintf(dump_file_comp, "[no, 0, %s, %d] no _output_shapes attribute", src->type_string().data(), src->id());
         flag = false;
         //return false;
       }
@@ -1095,7 +1095,7 @@ void DumpComputationNode(int cur_times, FILE *dump_file_comp, const Node *dst, s
         //printf("[%d: %s: %s]\n", dst->id(), dst->type_string().data(), dst->assigned_device_name().data());
         //TensorShape t_test = TensorShape(proto);
         //t_test.DebugString();
-        fprintf(dump_file_comp, "[input %d] ", cnt++);
+        fprintf(dump_file_comp, "[input, %d, %s, %d] ", cnt++, src->type_string().data(), src->id());
         for (const auto& d : proto.dim()) {
           fprintf(dump_file_comp, "%d, ", d.size());
         }
@@ -1109,6 +1109,19 @@ static std::mutex pt_mutex;
 Status Partition(const PartitionOptions& opts, Graph* g,
                  std::unordered_map<string, GraphDef>* partitions) {
   printf("in Partition()\n");
+  printf("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n");
+  for (Node* node : g->op_nodes()) {
+    //printf("node assigned_device_name: %s\n", node->assigned_device_name().data());
+    string d_name = node->assigned_device_name();
+    size_t found = d_name.rfind("gpu");
+    if (found != string::npos) {
+      d_name.replace(found, 3, "cpu");
+    }
+    printf("new node assigned_device_name: %s\n", d_name.data());
+    node->set_assigned_device_name(d_name);
+  }
+  printf("vvvvvvvvvvvvvvvvvvvvvvvvvvvvvv\n");
+
   int cur_times = 0;
   Status status;
   partitions->clear();
