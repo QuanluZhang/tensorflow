@@ -188,6 +188,9 @@ bool IsDstInputOnHost(const Edge* edge, const GraphInfo& info) {
   return true;
 }
 bool IsValidTensorShape(const Edge* edge, bool &is_static) {
+  if (edge->IsControlEdge()) {
+    return false;
+  }
   Node* src = edge->src();
   int src_port = edge->src_output();
   DataType dtype = EdgeType(edge);
@@ -199,13 +202,18 @@ bool IsValidTensorShape(const Edge* edge, bool &is_static) {
   is_static = false;
   std::vector<TensorShapeProto> shape_attrs;
   const char* kAttrName = "_output_shapes";
+  // TODO: if the edge is not control edge, do we need to check node attr and sttr size?
   if (!GetNodeAttr(src->def(), kAttrName, &shape_attrs).ok()) {
     // No _output_shapes attribute 
-    return false;
+    printf("GetNodeAttr is not ok\n");
+    assert(false);
+    //return false;
   }
   if (shape_attrs.size() != src->num_outputs()) {
-      // Invalid outputs nubmer
-      return false;
+    // Invalid outputs nubmer
+    printf("attrs size is not equal to num_output\n");
+    assert(false);
+    //return false;
   }
 
   const TensorShapeProto& proto = shape_attrs[src_port];
@@ -224,9 +232,13 @@ bool IsValidTensorShape(const Edge* edge, bool &is_static) {
     return true;
   } else {
     // the shape includes dim size of 0, invalid
-    return false;
+    // TODO: is this branch possible to be executed?
+    printf("num_elements is not larger than 0\n");
+    assert(false);
+    //return false;
   }
 }
+
 // wencong: output infer shape
 // assume IsValidTensorShape return true
 int GetValidTensorShape(const Edge* edge) {
@@ -1018,109 +1030,124 @@ void DumpTensorShape(const Edge *edge, FILE *dump_file_comm) {
   int element_size = 0;
   switch(dt){
     case tensorflow::DataType::DT_FLOAT : {
-      element_size = 4;
-      break;
-    }
+      element_size = 4; break; }
     case tensorflow::DataType::DT_DOUBLE : {
-      element_size = 8;
-      break;
-    }
+      element_size = 8; break; }
     case tensorflow::DataType::DT_INT32 : {
-      element_size = 4;
-      break;
-    }
+      element_size = 4; break; }
     case tensorflow::DataType::DT_UINT8 : {
-      element_size = 1;
-      break;
-    }
+      element_size = 1; break; }
     case tensorflow::DataType::DT_INT16 : {
-      element_size = 2;
-      break;
-    }
+      element_size = 2; break; }
     case tensorflow::DataType::DT_INT8 : {
-      element_size = 1;
-      break;
-    }
+      element_size = 1; break; }
     case tensorflow::DataType::DT_STRING : {
       element_size = 0;
       printf("[DataType] DT_STRING\n");
       break;
     }
     case tensorflow::DataType::DT_COMPLEX64 : {
-      element_size = 0;
-      printf("[DataType] DT_COMPLEX64\n");
-      break;
-    }
+      element_size = 8; break; }
     case tensorflow::DataType::DT_INT64 : {
-      element_size = 8;
-      break;
-    }
+      element_size = 8; break; }
     case tensorflow::DataType::DT_BOOL : {
-      element_size = 1;
-      printf("[DataType] DT_BOOL\n");
+      // TODO: not sure
+      element_size = 1; break; }
+    case tensorflow::DataType::DT_QINT8 : {
+      element_size = 1; break; }
+    case tensorflow::DataType::DT_QUINT8 : {
+      element_size = 1; break; }
+    case tensorflow::DataType::DT_QINT32 : {
+      element_size = 4; break; }
+    case tensorflow::DataType::DT_BFLOAT16 : {
+      element_size = 2; break; }
+    case tensorflow::DataType::DT_QINT16 : {
+      element_size = 2; break; }
+    case tensorflow::DataType::DT_QUINT16 : {
+      element_size = 2; break; }
+    case tensorflow::DataType::DT_UINT16 : {
+      element_size = 2; break; }
+    case tensorflow::DataType::DT_COMPLEX128 : {
+      element_size = 16; break; }
+    case tensorflow::DataType::DT_HALF : {
+      element_size = 2; break; }
+    case tensorflow::DataType::DT_RESOURCE : {
+      // TODO: not sure
+      element_size = 4;
+      printf("[DataType] DT_RESOURCE\n");
       break;
     }
     default: {
-      element_size = 0;
-      printf("unknown DataType: %d\n", dt);
+      if (dt >= 101 && dt <= 120) {
+        element_size = 8;
+      }
+      else {
+        printf("unknown DataType: %d\n", dt);
+      }
+      break;
     }
   }
 
   fprintf(dump_file_comm,"Op[%d->%d] Name[%s -> %s] Device[%s->%s] size: %d, #: %d\n", the_src->id(), the_dst->id(), the_src->name().data(), the_dst->name().data(), the_src->assigned_device_name().data(), the_dst->assigned_device_name().data(), element_size, element_num);
 }
+
 void DumpComputationNode(int cur_times, FILE *dump_file_comp, const Node *dst, std::vector<const Edge*> &inputs) {
   //if (dst->type_string() == "Conv2D" || dst->type_string() == "BiasAdd" || dst->type_string() == "MatMul") {
-  if (dst->type_string() != "NoOp") {
-    //if (cur_times == 9) {
-    //  printf("dump computation node : %s", dst->type_string().data());
-    //}
-    fprintf(dump_file_comp, "[%d: %s: %s]\n", dst->id(), dst->type_string().data(), dst->assigned_device_name().data());
-    //fprintf(dump_file_comp, "[%s: %s]\n", dst->type_string().data(), dst->assigned_device_name().data());
-    int cnt = 0;
-    for (const Edge* edge : inputs) {
-      Node *src = edge->src();
-      int src_port = edge->src_output();
-      std::vector<TensorShapeProto> shape_attrs;
-      const char* kAttrName = "_output_shapes";
-      bool flag = true;
-      if (!GetNodeAttr(src->def(), kAttrName, &shape_attrs).ok()) {
-        // No _output_shapes attribute 
-        fprintf(dump_file_comp, "[no, 0, %s, %d] no _output_shapes attribute", src->type_string().data(), src->id());
-        flag = false;
-        //return false;
-      }
-      if (flag){
-        const TensorShapeProto& proto = shape_attrs[src_port];
-        //proto.DebugString();
-        //printf("[%d: %s: %s]\n", dst->id(), dst->type_string().data(), dst->assigned_device_name().data());
-        //TensorShape t_test = TensorShape(proto);
-        //t_test.DebugString();
-        fprintf(dump_file_comp, "[input, %d, %s, %d] ", cnt++, src->type_string().data(), src->id());
-        for (const auto& d : proto.dim()) {
-          fprintf(dump_file_comp, "%d, ", d.size());
-        }
-      }
-      fprintf(dump_file_comp, "\n");
+  //if (dst->type_string() != "NoOp") {
+  fprintf(dump_file_comp, "[%d: %s: %s]\n", dst->id(), dst->type_string().data(), dst->assigned_device_name().data());
+  //fprintf(dump_file_comp, "[%s: %s]\n", dst->type_string().data(), dst->assigned_device_name().data());
+  int cnt = 0;
+  for (const Edge* edge : inputs) {
+    if (edge->IsControlEdge()) {
+      continue;
     }
+    Node *src = edge->src();
+    int src_port = edge->src_output();
+    std::vector<TensorShapeProto> shape_attrs;
+    const char* kAttrName = "_output_shapes";
+    bool flag = true;
+    if (!GetNodeAttr(src->def(), kAttrName, &shape_attrs).ok()) {
+      // No _output_shapes attribute 
+      fprintf(dump_file_comp, "[no, 0, %s, %d] no _output_shapes attribute", src->type_string().data(), src->id());
+      flag = false;
+      //return false;
+    }
+    if (flag){
+      const TensorShapeProto& proto = shape_attrs[src_port];
+      //proto.DebugString();
+      //printf("[%d: %s: %s]\n", dst->id(), dst->type_string().data(), dst->assigned_device_name().data());
+      //TensorShape t_test = TensorShape(proto);
+      //t_test.DebugString();
+      fprintf(dump_file_comp, "[input, %d, %s, %d] ", cnt++, src->type_string().data(), src->id());
+      for (const auto& d : proto.dim()) {
+        fprintf(dump_file_comp, "%d, ", d.size());
+      }
+    }
+    fprintf(dump_file_comp, "\n");
   }
+  //}
 }
+
 static int partition_times(0);
 static std::mutex pt_mutex;
 Status Partition(const PartitionOptions& opts, Graph* g,
                  std::unordered_map<string, GraphDef>* partitions) {
   printf("in Partition()\n");
-  printf("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n");
-  for (Node* node : g->op_nodes()) {
-    //printf("node assigned_device_name: %s\n", node->assigned_device_name().data());
-    string d_name = node->assigned_device_name();
-    size_t found = d_name.rfind("gpu");
-    if (found != string::npos) {
-      d_name.replace(found, 3, "cpu");
+  bool config_graph_placement = false;
+  if (config_graph_placement) {
+    printf("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n");
+    for (Node* node : g->op_nodes()) {
+      //printf("node assigned_device_name: %s\n", node->assigned_device_name().data());
+      string d_name = node->assigned_device_name();
+      size_t found = d_name.rfind("gpu");
+      if (found != string::npos) {
+        d_name.replace(found, 3, "cpu");
+      }
+      printf("new node assigned_device_name: %s\n", d_name.data());
+      node->set_assigned_device_name(d_name);
     }
-    printf("new node assigned_device_name: %s\n", d_name.data());
-    node->set_assigned_device_name(d_name);
+    printf("vvvvvvvvvvvvvvvvvvvvvvvvvvvvvv\n");
   }
-  printf("vvvvvvvvvvvvvvvvvvvvvvvvvvvvvv\n");
 
   int cur_times = 0;
   Status status;

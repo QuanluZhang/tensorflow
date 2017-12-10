@@ -169,8 +169,8 @@ def main(_):
         train_accuracy = accuracy.eval(feed_dict={
             x: batch[0], y_: batch[1], keep_prob: 1.0})
         print('step %d, training accuracy %g' % (i, train_accuracy))
-      print('batch:', batch[0].shape)
-      print('batch_y:', batch[1].shape)
+      #print('batch:', batch[0].shape)
+      #print('batch_y:', batch[1].shape)
       train_step.run(feed_dict={x: batch[0], y_: batch[1], keep_prob: 0.5})
 
     print('test accuracy %g' % accuracy.eval(feed_dict={
