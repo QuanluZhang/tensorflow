@@ -206,14 +206,14 @@ bool IsValidTensorShape(const Edge* edge, bool &is_static) {
   if (!GetNodeAttr(src->def(), kAttrName, &shape_attrs).ok()) {
     // No _output_shapes attribute 
     printf("GetNodeAttr is not ok\n");
-    assert(false);
-    //return false;
+    //assert(false);
+    return false;
   }
   if (shape_attrs.size() != src->num_outputs()) {
     // Invalid outputs nubmer
     printf("attrs size is not equal to num_output\n");
-    assert(false);
-    //return false;
+    //assert(false);
+    return false;
   }
 
   const TensorShapeProto& proto = shape_attrs[src_port];
@@ -1451,7 +1451,7 @@ Status Partition(const PartitionOptions& opts, Graph* g,
     for (int i=0;i<nverts;i++)
     {
       Node *node = g->FindNodeId(i);
-      fprintf(dump_file_graph, "[%d][%s][%s]", i, node->type_string().data(), node->assigned_device_name().data());
+      fprintf(dump_file_graph, "[%d][%s][%s][%s]", i, node->type_string().data(), node->name().data(), node->assigned_device_name().data());
       for (Node *out: node->out_nodes()) {
         fprintf(dump_file_graph, "\t%d", out->id());
       }

@@ -154,6 +154,23 @@ def main(_):
   train_writer = tf.summary.FileWriter(graph_location)
   train_writer.add_graph(tf.get_default_graph())
 
+
+  # quanlu: write metagraph
+  #meta_graph_def = tf.train.export_meta_graph(filename='/tmp/mymodel.meta')
+
+  # change graph def
+  op = tf.get_default_graph().get_operation_by_name("dropout/dropout/add")
+  #print(dir(op.inputs))
+  for each in op.inputs:
+    print("i: ", each)
+  abc = tf.placeholder(tf.float32, [50, 1024])
+  op._update_input(1, abc)
+  print("new inputs:")
+  for each in op.inputs:
+    print("i: ", each)
+  print("over...")
+  return 0
+
   config = tf.ConfigProto()
   config.gpu_options.per_process_gpu_memory_fraction = 0.4
   config.graph_options.infer_shapes = True
