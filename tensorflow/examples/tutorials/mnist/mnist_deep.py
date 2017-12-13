@@ -156,20 +156,30 @@ def main(_):
 
 
   # quanlu: write metagraph
-  #meta_graph_def = tf.train.export_meta_graph(filename='/tmp/mymodel.meta')
+  tf.add_to_collection("my_accuracy", accuracy)
+  tf.add_to_collection("my_train_step", train_step)
+  tf.add_to_collection("inputs", x)
+  tf.add_to_collection("inputs", y_)
+  tf.add_to_collection("inputs", keep_prob)
+  meta_graph_def = tf.train.export_meta_graph(filename='/tmp/mymodel.meta')
+
+  #tf.reset_default_graph()
+  #tf.train.import_meta_graph('/tmp/mymodel.meta')
+  #accuracy = tf.get_collection('my_accuracy')[0]
+  #train_step = tf.get_collection('my_train_step')[0]
+  #[x, y_, keep_prob] = tf.get_collection('inputs')
 
   # change graph def
-  op = tf.get_default_graph().get_operation_by_name("dropout/dropout/add")
-  #print(dir(op.inputs))
-  for each in op.inputs:
-    print("i: ", each)
-  abc = tf.placeholder(tf.float32, [50, 1024])
-  op._update_input(1, abc)
-  print("new inputs:")
-  for each in op.inputs:
-    print("i: ", each)
-  print("over...")
-  return 0
+#  op = tf.get_default_graph().get_operation_by_name("dropout/dropout/add")
+#  for each in op.inputs:
+#    print("i: ", each)
+#  abc = tf.placeholder(tf.float32, [50, 1024])
+#  op._update_input(1, abc)
+#  print("new inputs:")
+#  for each in op.inputs:
+#    print("i: ", each)
+#  print("over...")
+#  return 0
 
   config = tf.ConfigProto()
   config.gpu_options.per_process_gpu_memory_fraction = 0.4
