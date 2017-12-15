@@ -170,7 +170,85 @@ def main(_):
   #[x, y_, keep_prob] = tf.get_collection('inputs')
 
   # change graph def
-#  op = tf.get_default_graph().get_operation_by_name("dropout/dropout/add")
+  #op = tf.get_default_graph().get_operation_by_name("dropout/dropout/add")
+#  name_type_map = dict()
+#  subg_fd = open("/home/quzha/work/GraphPartition/subgraph_nodes.csv", "r")
+#  line = subg_fd.readline()
+#  segs = line.split()
+#  assert(segs[0] == "input_nodes")
+#  subg_inputs = []
+#  for i in range(int(segs[1])):
+#    line = subg_fd.readline()
+#    full_name = line.split(";")[1]
+#    subg_inputs.append(full_name)
+#    name_type_map[full_name] = line.split(";")[2][:-1]
+#
+#  line = subg_fd.readline()
+#  segs = line.split()
+#  assert(segs[0] == "true_nodes")
+#  subg_nodes = []
+#  for i in range(int(segs[1])):
+#    line = subg_fd.readline()
+#    full_name = line.split(";")[1]
+#    subg_nodes.append(full_name)
+#    name_type_map[full_name] = line.split(";")[2][:-1]
+#
+#  line = subg_fd.readline()
+#  segs = line.split()
+#  assert(segs[0] == "boundary_nodes")
+#  subg_bd_nodes = []
+#  for i in range(int(segs[1])):
+#    line = subg_fd.readline()
+#    full_name = line.split(";")[1]
+#    subg_bd_nodes.append(full_name)
+#    name_type_map[full_name] = line.split(";")[2][:-1]
+#
+#  line = subg_fd.readline()
+#  segs = line.split()
+#  assert(segs[0] == "sink_node")
+#  line = subg_fd.readline()
+#  subg_sink = line.split(";")[1]
+#  name_type_map[full_name] = line.split(";")[2][:-1]
+#  subg_fd.close()
+#
+#  # print graph nodes
+#  for n in tf.get_default_graph().as_graph_def().node:
+#    print("node: ", n)
+#  return 0
+#
+#  # get sink op
+#  sink_op = tf.get_default_graph().get_operation_by_name(subg_sink)
+#
+#  # create placeholder for input node
+#  new_placeholders = dict()
+#  for each in subg_inputs:
+#    print("subg_inputs: ", each)
+#    if name_type_map[each] == "_Arg":
+#        continue
+#    op = tf.get_default_graph().get_operation_by_name(each)
+#    assert(len(op.outputs) == 1)
+#    print(op.outputs[0])
+#    #print(dir(op.outputs[0]))
+#    print("shape: ", op.outputs[0].shape)
+#    if len(op.outputs[0].shape) > 0:
+#      print("     shape3: ", op.outputs[0].shape[0])
+#    new_ph = tf.placeholder(op.outputs[0].dtype, op.outputs[0].shape)
+#    new_placeholders[each] = new_ph
+#    print("TTT: ", new_placeholders[each])
+#
+#  # update boundary nodes' inputs
+#  print("boundary nodes inputs: ")
+#  for each in subg_bd_nodes:
+#    op = tf.get_default_graph().get_operation_by_name(each)
+#    for i in op.inputs:
+#        print(i)
+#
+#  return 0
+#  op = tf.get_default_graph().get_operation_by_name("fc1/MatMul")
+#  print("outputs:")
+#  for each in op.outputs:
+#    print(each)
+#  print("inputs:")
 #  for each in op.inputs:
 #    print("i: ", each)
 #  abc = tf.placeholder(tf.float32, [50, 1024])

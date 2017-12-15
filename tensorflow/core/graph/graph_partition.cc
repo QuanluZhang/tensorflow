@@ -1152,7 +1152,7 @@ Status Partition(const PartitionOptions& opts, Graph* g,
   int cur_times = 0;
   Status status;
   partitions->clear();
-  bool dump_info = true;
+  bool dump_info = false;
   FILE *dump_file_comm = nullptr;
   FILE *dump_file_comp = nullptr;
   FILE *dump_file_graph = nullptr;
