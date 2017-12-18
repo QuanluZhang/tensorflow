@@ -1897,6 +1897,11 @@ void ExecutorState::PropagateOutputs(const TaggedNode& tagged_node,
   int64 input_iter = tagged_node.input_iter;
   const bool is_dead = tagged_node.is_dead;
 
+  // quanlu: dump op's output tensors' shape
+  bool dump_output_shape = true;
+  if (dump_output_shape) {
+  }
+
   // Propagates outputs along out edges, and puts newly ready nodes
   // into the ready queue.
   ready->clear();
@@ -2369,10 +2374,42 @@ void ExecutorState::CleanupFramesIterations(FrameState* frame, int64 iter,
   }
 }
 
+
 void ExecutorState::FrameState::ActivateNodes(const NodeItem* item,
                                               const bool is_dead, int64 iter,
                                               EntryVector* outputs,
                                               TaggedNodeSeq* ready) {
+  // quanlu: dump node and its output shape
+  bool dump_output_shape = true;
+  if (dump_output_shape) {
+    string dump_file_name = "/home/quzha/static_analysis/result/dump_output_shape.txt";
+    FILE *dump_file_shape = fopen(dump_file_name.data(), "a");
+    const Node *node = item->node;
+    fprintf(dump_file_shape, "A[%s][%s][%s]", node->type_string().data(), node->name().data(), node->assigned_device_name().data());
+    for (Node *out: node->out_nodes()) {
+      fprintf(dump_file_shape, "\t%d", out->id());
+    }
+    fprintf(dump_file_shape, "\n");
+    for (int i = 0; i < item->num_outputs; ++i) {
+      const Entry& out = ((*outputs)[i]);
+      Tensor const * t;
+      if (!out.has_value) {
+        t = kEmptyTensor;
+      } else if (out.ref == nullptr) {
+        t = out.val.get();
+      } else {
+        t = out.ref;
+      }
+      fprintf(dump_file_shape, "B");
+      for (int j = 0; j < t->dims(); ++j) {
+        int64 ds = t->dim_size(j);
+        fprintf(dump_file_shape, "\t%ld", ds);
+      }
+      fprintf(dump_file_shape, "\n");
+    }
+    fclose(dump_file_shape);
+  }
+
   const GraphView& gview = executor->gview_;
   IterationState* iter_state = GetIteration(iter);
   const size_t num_output_edges = item->num_output_edges;
