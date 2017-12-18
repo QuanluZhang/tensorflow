@@ -231,7 +231,10 @@ def main(_):
       continue
     op = tf.get_default_graph().get_operation_by_name(each)
     print(len(op.outputs))
-    assert(len(op.outputs) == 1)
+    if len(op.outputs) > 1:
+      for m in op.outputs:
+        print("**********************************************************special node: ", m)
+    #assert(len(op.outputs) == 1)
     print(op.outputs[0])
     #print(dir(op.outputs[0]))
     print("shape: ", op.outputs[0].shape)
@@ -253,12 +256,17 @@ def main(_):
     for m in op.inputs:
       print("---: ", m)
     for i in range(len(op.inputs)):
+      # TODO: it is possible that :XX rather than :X
       if op.inputs[i].name[:-2] in new_placeholders:
         #print("tttttt: ", name_type_map)
         op._update_input(i, new_placeholders[op.inputs[i].name[:-2]])
       else:
-        print("YYYYYYYY: ", op.inputs[i])
-        new_placeholders[op.inputs[i].name[:-2]] = op.inputs[i]
+        print("YYYYYYYY: ", op.inputs[i], " dtype: ", op.inputs[i].dtype)
+        predecessor_op = tf.get_default_graph().get_operation_by_name(op.inputs[i].name[:-2])
+        print("predecessor_op: ", predecessor_op.type)
+        if predecessor_op.type == 'Placeholder':
+          new_placeholders[op.inputs[i].name[:-2]] = op.inputs[i]
+        #new_placeholders[op.inputs[i].name[:-2]] = op.inputs[i]
     for m in op.inputs:
       print("+++:", m)
 
@@ -275,9 +283,15 @@ def main(_):
       print("data type: ", new_placeholders[name].dtype.as_numpy_dtype)
       print("data shape type: ", type(new_placeholders[name].shape.dims))
       print("data shape type: ", type(new_placeholders[name].shape.ndims))
-      xxx = np.ndarray(shape = new_placeholders[name].shape, dtype = new_placeholders[name].dtype.as_numpy_dtype)
-      print(name, xxx.size)
-      feed_data[new_placeholders[name]] = np.ndarray(shape = new_placeholders[name].shape, dtype = new_placeholders[name].dtype.as_numpy_dtype)
+      print("data shape type: ", new_placeholders[name].shape.dims)
+      print("data shape type: ", new_placeholders[name].shape.ndims)
+      #xxx = np.ndarray(shape = new_placeholders[name].shape, dtype = new_placeholders[name].dtype.as_numpy_dtype)
+      #print(name, xxx.size)
+      if new_placeholders[name].shape.dims == None:
+        print("unknown shape: ", new_placeholders[name].shape.dims)
+        feed_data[new_placeholders[name]] = np.ndarray(shape = (1), dtype = new_placeholders[name].dtype.as_numpy_dtype)
+      else:
+        feed_data[new_placeholders[name]] = np.ndarray(shape = new_placeholders[name].shape, dtype = new_placeholders[name].dtype.as_numpy_dtype)
     sess.run(tf.global_variables_initializer())
     for i in range(10):
       sess.run(sink_op, feed_dict = feed_data)
