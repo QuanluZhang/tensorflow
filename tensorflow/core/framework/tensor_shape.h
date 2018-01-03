@@ -75,6 +75,13 @@ class TensorShapeRep {
 
   void DumpRep() const;  // XXX
 
+  // quanlu: for test
+  void set_data_type_pub(DataType dt) {
+    // We only have 8 bits available to store DataType, so make sure it fits
+    DCHECK_LT(static_cast<uint32>(dt), 256u);
+    buf()[13] = static_cast<uint8>(dt);
+  }
+
  protected:
   // Constructable only via TensorShapeBase
   TensorShapeRep() = default;
