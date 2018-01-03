@@ -2385,7 +2385,7 @@ void ExecutorState::FrameState::ActivateNodes(const NodeItem* item,
     string dump_file_name = "/home/quzha/static_analysis/result/dump_output_shape.txt";
     FILE *dump_file_shape = fopen(dump_file_name.data(), "a");
     const Node *node = item->node;
-    fprintf(dump_file_shape, "A[%s][%s][%s]", node->type_string().data(), node->name().data(), node->assigned_device_name().data());
+    fprintf(dump_file_shape, "op[%s][%s][%s]", node->type_string().data(), node->name().data(), node->assigned_device_name().data());
     for (Node *out: node->out_nodes()) {
       fprintf(dump_file_shape, "\t%d", out->id());
     }
@@ -2400,7 +2400,7 @@ void ExecutorState::FrameState::ActivateNodes(const NodeItem* item,
       } else {
         t = out.ref;
       }
-      fprintf(dump_file_shape, "B");
+      fprintf(dump_file_shape, "one_output");
       for (int j = 0; j < t->dims(); ++j) {
         int64 ds = t->dim_size(j);
         fprintf(dump_file_shape, "\t%ld", ds);

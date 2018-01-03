@@ -234,7 +234,7 @@ def main(_):
     if len(op.outputs) > 1:
       for m in op.outputs:
         print("**********************************************************special node: ", m)
-    #assert(len(op.outputs) == 1)
+    assert(len(op.outputs) == 1)
     print(op.outputs[0])
     #print(dir(op.outputs[0]))
     print("shape: ", op.outputs[0].shape)
@@ -245,9 +245,29 @@ def main(_):
       new_placeholders[each] = new_const
       print("LLL: ", new_placeholders[each])
     else:
-      new_ph = tf.placeholder(op.outputs[0].dtype, op.outputs[0].shape)
-      new_placeholders[each] = new_ph
-      print("TTT: ", new_placeholders[each])
+#      if each == "adam_optimizer/gradients/fc1/add_grad/BroadcastGradientArgs":
+#        print("first::", op.outputs[0].dtype, op.outputs[0].shape.dims, op.outputs[0].shape.ndims)
+#        new_ph = tf.placeholder(op.outputs[0].dtype, (1,))
+#        new_placeholders[each] = new_ph
+#        print("TTT: ", new_placeholders[each])
+      if each == "adam_optimizer/gradients/dropout/dropout/div_grad/Shape_1":
+        new_ph = tf.placeholder(op.outputs[0].dtype, (1,))
+        new_placeholders[each] = new_ph
+      elif each == "adam_optimizer/gradients/dropout/dropout/div_grad/Sum_1":
+        new_ph = tf.placeholder(op.outputs[0].dtype, (0,))
+        new_placeholders[each] = new_ph
+      elif each == "adam_optimizer/gradients/dropout/dropout/div_grad/RealDiv":
+        new_ph = tf.placeholder(op.outputs[0].dtype, (50,1024))
+        new_placeholders[each] = new_ph
+      elif each == "adam_optimizer/gradients/dropout/dropout/div_grad/Sum":
+        new_ph = tf.placeholder(op.outputs[0].dtype, (50,1024))
+        new_placeholders[each] = new_ph
+      elif each == "fc1/Variable_1":
+        new_ph = tf.Variable(tf.zeros(op.outputs[0].shape), dtype = tf.float32, expected_shape = op.outputs[0].shape)
+      else:
+        new_ph = tf.placeholder(op.outputs[0].dtype, op.outputs[0].shape)
+        new_placeholders[each] = new_ph
+        print("TTT: ", new_placeholders[each])
 
   # update boundary nodes' inputs
   #print("boundary nodes inputs: ")
@@ -258,8 +278,11 @@ def main(_):
     for i in range(len(op.inputs)):
       # TODO: it is possible that :XX rather than :X
       if op.inputs[i].name[:-2] in new_placeholders:
-        #print("tttttt: ", name_type_map)
-        op._update_input(i, new_placeholders[op.inputs[i].name[:-2]])
+        print("tttttt: ", op.inputs[i].name[:-2])
+        if op.inputs[i].name[:-2] == "fc1/Variable_1":
+          op._update_input(i, new_placeholders[op.inputs[i].name[:-2]].read_value())
+        else:
+          op._update_input(i, new_placeholders[op.inputs[i].name[:-2]])
       else:
         print("YYYYYYYY: ", op.inputs[i], " dtype: ", op.inputs[i].dtype)
         predecessor_op = tf.get_default_graph().get_operation_by_name(op.inputs[i].name[:-2])
@@ -279,6 +302,7 @@ def main(_):
     for name in new_placeholders:
       if (name in name_type_map) and (name_type_map[name] == "Const"):
         continue
+      print("op name: ", name)
       print(new_placeholders[name])
       print("data type: ", new_placeholders[name].dtype.as_numpy_dtype)
       print("data shape type: ", type(new_placeholders[name].shape.dims))

@@ -27,13 +27,25 @@ class TensorGeneratorOp : public OpKernel {
     void Compute(OpKernelContext* context) override {
         const Tensor& input_tensor = context->input(0);
         auto input = input_tensor.flat<int32>();
+        CHECK_GE(input.size(), 2) << "input size " << input.size()
+                                  << " should be larger than or equal to 2";
+
+        DataType out_data_type;
+        int type_num = input(0);
+        if (type_num >= 1 && type_num <= 20) {
+            out_data_type = (DataType)type_num;
+        }
+        else {
+            CHECK_GE(1, 2) << "TensorGenerator: invalid data type";
+        }
 
         Tensor* output_tensor = NULL;
         TensorShape new_shape = TensorShape();
-        new_shape.AddDim(2);
-        new_shape.AddDim(2);
-        new_shape.AddDim(2);
-        new_shape.set_data_type_pub(DT_FLOAT);
+        for (int i = 1; i < input.size(); i++) {
+            new_shape.AddDim(input(i));
+        }
+        //new_shape.set_data_type_pub(DT_FLOAT);
+        new_shape.set_data_type_pub(out_data_type);
         OP_REQUIRES_OK(context, context->allocate_output(0, new_shape, &output_tensor));
         auto output_flat = output_tensor->flat<float>();
 
