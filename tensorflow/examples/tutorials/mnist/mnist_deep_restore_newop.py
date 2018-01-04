@@ -174,7 +174,6 @@ def main(_):
   [x, y_, keep_prob] = tf.get_collection('inputs')
 
   # change graph def
-  #op = tf.get_default_graph().get_operation_by_name("dropout/dropout/add")
   name_type_map = dict()
   subg_fd = open("/home/quzha/work/GraphPartition/subgraph_nodes.csv", "r")
   line = subg_fd.readline()
@@ -215,11 +214,6 @@ def main(_):
   name_type_map[full_name] = line.split(";")[2][:-1]
   subg_fd.close()
 
-  # print graph nodes
-  #for n in tf.get_default_graph().as_graph_def().node:
-  #  print("node: ", n)
-  #return 0
-
   # get sink op
   sink_op = tf.get_default_graph().get_operation_by_name(subg_sink)
 
@@ -229,32 +223,16 @@ def main(_):
   # create placeholder/constant for input node
   new_operations = dict()
   for each in subg_inputs:
-    print("subg_inputs: ", each)
     if name_type_map[each] == "_Arg":
       continue
     op = tf.get_default_graph().get_operation_by_name(each)
-    print(len(op.outputs))
-    if len(op.outputs) > 1:
-      for m in op.outputs:
-        print("**********************************************************special node: ", m)
     assert(len(op.outputs) == 1)
-    print(op.outputs[0])
-    #print(dir(op.outputs[0]))
-    print("shape: ", op.outputs[0].shape)
-    #if len(op.outputs[0].shape) > 0:
-    #  print("     shape3: ", op.outputs[0].shape[0])
+    #print(len(op.outputs), op.outputs[0])
+    print("subg_inputs: ", each, " shape: ", op.outputs[0].shape)
     if name_type_map[each] == "Const":
       new_const = tf.identity(op.outputs[0])
       new_operations[each] = new_const
-      print("LLL: ", new_operations[each])
     else:
-#      if each == "adam_optimizer/gradients/fc1/add_grad/BroadcastGradientArgs":
-#        print("first::", op.outputs[0].dtype, op.outputs[0].shape.dims, op.outputs[0].shape.ndims)
-#        new_ph = tf.placeholder(op.outputs[0].dtype, (1,))
-#        new_placeholders[each] = new_ph
-#        print("TTT: ", new_placeholders[each])
-      #print("dtype value: ", int(op.outputs[0].dtype))
-      #return
       if each == "adam_optimizer/gradients/dropout/dropout/div_grad/Shape_1":
         new_op = tg_module.tensor_generator([int(op.outputs[0].dtype), 0], op.outputs[0].dtype)
         new_operations[each] = new_op
@@ -274,59 +252,41 @@ def main(_):
         tmp_array.append(int(op.outputs[0].dtype))
         for dim in op.outputs[0].shape:
           tmp_array.append(int(dim))
-        print("tmp_array: ", tmp_array)
         new_op = tg_module.tensor_generator(tmp_array, op.outputs[0].dtype)
         new_operations[each] = new_op
-        print("TTT: ", new_operations[each])
 
   # update boundary nodes' inputs
-  #print("boundary nodes inputs: ")
   new_pholders = dict()
   for each in subg_bd_nodes:
     op = tf.get_default_graph().get_operation_by_name(each)
-    for m in op.inputs:
-      print("---: ", m)
     for i in range(len(op.inputs)):
       # TODO: it is possible that :XX rather than :X
+      assert(len(op.inputs[i].name.split(':')[-1]) == 1)
       if op.inputs[i].name[:-2] in new_operations:
-        print("tttttt: ", op.inputs[i].name[:-2])
         if op.inputs[i].name[:-2] == "fc1/Variable_1":
           op._update_input(i, new_operations[op.inputs[i].name[:-2]].read_value())
         else:
           op._update_input(i, new_operations[op.inputs[i].name[:-2]])
       else:
-        print("YYYYYYYY: ", op.inputs[i], " dtype: ", op.inputs[i].dtype)
+        # if the input is not in new_operations, and its predecessor is a placeholder,
+        # we still need to record it in order to feed data
         predecessor_op = tf.get_default_graph().get_operation_by_name(op.inputs[i].name[:-2])
-        print("predecessor_op: ", predecessor_op.type)
         if predecessor_op.type == 'Placeholder':
           new_pholders[op.inputs[i].name[:-2]] = op.inputs[i]
-        #new_placeholders[op.inputs[i].name[:-2]] = op.inputs[i]
-    for m in op.inputs:
-      print("+++:", m)
-
-  #print("##############################################")
-  #for n in tf.get_default_graph().as_graph_def().node:
-  #  print("node: ", n)
 
   with tf.Session() as sess:
     feed_data = dict()
     for name in new_pholders:
       if (name in name_type_map) and (name_type_map[name] == "Const"):
+        assert(False)
         continue
-      print("op name: ", name)
-      print(new_pholders[name])
-      print("data type: ", new_pholders[name].dtype.as_numpy_dtype)
-      print("data shape type: ", type(new_pholders[name].shape.dims))
-      print("data shape type: ", type(new_pholders[name].shape.ndims))
-      print("data shape type: ", new_pholders[name].shape.dims)
-      print("data shape type: ", new_pholders[name].shape.ndims)
-      #xxx = np.ndarray(shape = new_placeholders[name].shape, dtype = new_placeholders[name].dtype.as_numpy_dtype)
-      #print(name, xxx.size)
-      if new_pholders[name].shape.dims == None:
-        print("unknown shape: ", new_pholders[name].shape.dims)
-        feed_data[new_pholders[name]] = np.ndarray(shape = (1), dtype = new_pholders[name].dtype.as_numpy_dtype)
-      else:
-        feed_data[new_pholders[name]] = np.ndarray(shape = new_pholders[name].shape, dtype = new_pholders[name].dtype.as_numpy_dtype)
+      assert(new_pholders[name].shape.dims != None)
+      #if new_pholders[name].shape.dims == None:
+      #  print("unknown shape: ", new_pholders[name].shape.dims)
+      #  feed_data[new_pholders[name]] = np.ndarray(shape = (1), dtype = new_pholders[name].dtype.as_numpy_dtype)
+      #else:
+      #  feed_data[new_pholders[name]] = np.ndarray(shape = new_pholders[name].shape, dtype = new_pholders[name].dtype.as_numpy_dtype)
+      feed_data[new_pholders[name]] = np.ndarray(shape = new_pholders[name].shape, dtype = new_pholders[name].dtype.as_numpy_dtype)
     sess.run(tf.global_variables_initializer())
     for i in range(10):
       sess.run(sink_op, feed_dict = feed_data)
