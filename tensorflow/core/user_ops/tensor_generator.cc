@@ -27,7 +27,7 @@ class TensorGeneratorOp : public OpKernel {
     void Compute(OpKernelContext* context) override {
         const Tensor& input_tensor = context->input(0);
         auto input = input_tensor.flat<int32>();
-        CHECK_GE(input.size(), 2) << "input size " << input.size()
+        CHECK_GE(input.size(), 1) << "input size " << input.size()
                                   << " should be larger than or equal to 2";
 
         DataType out_data_type;
@@ -36,7 +36,8 @@ class TensorGeneratorOp : public OpKernel {
             out_data_type = (DataType)type_num;
         }
         else {
-            CHECK_GE(1, 2) << "TensorGenerator: invalid data type";
+            CHECK_GE(1, 2) << "TensorGenerator: invalid data type " << type_num
+                           << " end";
         }
 
         Tensor* output_tensor = NULL;
@@ -47,17 +48,19 @@ class TensorGeneratorOp : public OpKernel {
         //new_shape.set_data_type_pub(DT_FLOAT);
         new_shape.set_data_type_pub(out_data_type);
         OP_REQUIRES_OK(context, context->allocate_output(0, new_shape, &output_tensor));
-        auto output_flat = output_tensor->flat<float>();
+        //auto output_flat = output_tensor->flat<float>();
 
         //const int N = input.size();
-        const int N = output_flat.size();
-        printf("XXXXXXXXXXXXXXXXXXXXXXXXX%d\n", N);
-        for (int i = 0; i < N; i++) {
-            output_flat(i) = 1;
-        }
+        //const int N = output_flat.size();
+        //printf("XXXXXXXXXXXXXXXXXXXXXXXXX%d\n", N);
+        //for (int i = 0; i < N; i++) {
+        //    output_flat(i) = 1;
+        //}
 
         //if (N > 0) output_flat(0) = input(0);
     }
+
+    //bool IsExpensive() override { return false; }
 };
 
 //REGISTER_KERNEL_BUILDER(Name("TensorGenerator").Device(DEVICE_CPU), TensorGeneratorOp);
