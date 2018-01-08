@@ -9,7 +9,7 @@
 using namespace tensorflow;
 
 
-REGISTER_OP("TensorGenerator")
+REGISTER_OP("TensorGeneratorTmp")
     .Attr("T: type")
     .Input("tensor_shape: int32")
     .Output("out_tensor: T") // what if data type is different
@@ -20,9 +20,9 @@ REGISTER_OP("TensorGenerator")
     //.Doc(R"doc(Generate different type/shape of tensor according to input data)doc");
 
 template <typename T>
-class TensorGeneratorOp : public OpKernel {
+class TensorGeneratorTmpOp : public OpKernel {
   public:
-    explicit TensorGeneratorOp(OpKernelConstruction* context) : OpKernel(context) {}
+    explicit TensorGeneratorTmpOp(OpKernelConstruction* context) : OpKernel(context) {}
 
     void Compute(OpKernelContext* context) override {
         const Tensor& input_tensor = context->input(0);
@@ -66,8 +66,8 @@ class TensorGeneratorOp : public OpKernel {
 //REGISTER_KERNEL_BUILDER(Name("TensorGenerator").Device(DEVICE_CPU), TensorGeneratorOp);
 #define REGISTER_KERNEL(type)                                                   \
     REGISTER_KERNEL_BUILDER(                                                    \
-        Name("TensorGenerator").Device(DEVICE_CPU).TypeConstraint<type>("T"),   \
-        TensorGeneratorOp<type>)
+        Name("TensorGeneratorTmp").Device(DEVICE_CPU).TypeConstraint<type>("T"),   \
+        TensorGeneratorTmpOp<type>)
 
 TF_CALL_ALL_TYPES(REGISTER_KERNEL);
 

@@ -2385,11 +2385,17 @@ void ExecutorState::FrameState::ActivateNodes(const NodeItem* item,
     string dump_file_name = "/home/quzha/static_analysis/result/dump_output_shape.txt";
     FILE *dump_file_shape = fopen(dump_file_name.data(), "a");
     const Node *node = item->node;
-    fprintf(dump_file_shape, "op[%s][%s][%s]", node->type_string().data(), node->name().data(), node->assigned_device_name().data());
+    fprintf(dump_file_shape, "op[%s][%s][%s][%d]", node->type_string().data(), node->name().data(), node->assigned_device_name().data(), node->id());
     for (Node *out: node->out_nodes()) {
       fprintf(dump_file_shape, "\t%d", out->id());
     }
     fprintf(dump_file_shape, "\n");
+    const EdgeSet& out_edges = node->out_edges();
+    fprintf(dump_file_shape, "edge");
+    for (EdgeSet::const_iterator iter = out_edges.begin(); iter != out_edges.end(); iter++) {
+        fprintf(dump_file_shape, "\t%d", (*iter)->src_output());
+    }
+    fprintf(dump_file_shape,"\n");
     for (int i = 0; i < item->num_outputs; ++i) {
       const Entry& out = ((*outputs)[i]);
       Tensor const * t;

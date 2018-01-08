@@ -219,8 +219,14 @@ def main(_):
 
   # load customized op
   tg_module = tf.load_op_library('/home/quzha/work/tensorflow/tensorflow/core/user_ops/tensor_generator.so')
+  #print(dir(tg_module))
 
   # create placeholder/constant for input node
+  sys.path.append('/home/quzha/work/GraphPartition/')
+  import parse_runtime_shape
+  runtime_shape = parse_runtime_shape.parse_runtime_shape('/home/quzha/static_analysis/result/dump_output_shape.txt')
+  #print(runtime_shape)
+
   new_operations = dict()
   for each in subg_inputs:
     if name_type_map[each] == "_Arg":
@@ -230,29 +236,43 @@ def main(_):
     #print(len(op.outputs), op.outputs[0])
     print("subg_inputs: ", each, " shape: ", op.outputs[0].shape)
     if name_type_map[each] == "Const":
+      assert(op.outputs[0].shape.is_fully_defined())
       new_const = tf.identity(op.outputs[0])
       new_operations[each] = new_const
     else:
-      if each == "adam_optimizer/gradients/dropout/dropout/div_grad/Shape_1":
-        new_op = tg_module.tensor_generator([int(op.outputs[0].dtype), 0], op.outputs[0].dtype)
-        new_operations[each] = new_op
-      elif each == "adam_optimizer/gradients/dropout/dropout/div_grad/Sum_1":
-        new_op = tg_module.tensor_generator([int(op.outputs[0].dtype)], op.outputs[0].dtype)
-        new_operations[each] = new_op
-      elif each == "adam_optimizer/gradients/dropout/dropout/div_grad/RealDiv":
-        new_op = tg_module.tensor_generator([int(op.outputs[0].dtype), 50,1024], op.outputs[0].dtype)
-        new_operations[each] = new_op
-      elif each == "adam_optimizer/gradients/dropout/dropout/div_grad/Sum":
-        new_op = tg_module.tensor_generator([int(op.outputs[0].dtype), 50,1024], op.outputs[0].dtype)
+#      if each == "adam_optimizer/gradients/dropout/dropout/div_grad/Shape_1":
+#        assert(not op.outputs[0].shape.is_fully_defined())
+#        new_op = tg_module.tensor_generator_tmp([int(op.outputs[0].dtype), 0], op.outputs[0].dtype)
+#        new_operations[each] = new_op
+#      elif each == "adam_optimizer/gradients/dropout/dropout/div_grad/Sum_1":
+#        assert(not op.outputs[0].shape.is_fully_defined())
+#        new_op = tg_module.tensor_generator_tmp([int(op.outputs[0].dtype)], op.outputs[0].dtype)
+#        new_operations[each] = new_op
+#      elif each == "adam_optimizer/gradients/dropout/dropout/div_grad/RealDiv":
+#        assert(not op.outputs[0].shape.is_fully_defined())
+#        new_op = tg_module.tensor_generator_tmp([int(op.outputs[0].dtype), 50,1024], op.outputs[0].dtype)
+#        new_operations[each] = new_op
+#      elif each == "adam_optimizer/gradients/dropout/dropout/div_grad/Sum":
+#        assert(not op.outputs[0].shape.is_fully_defined())
+#        new_op = tg_module.tensor_generator_tmp([int(op.outputs[0].dtype), 50,1024], op.outputs[0].dtype)
+#        new_operations[each] = new_op
+      if not op.outputs[0].shape.is_fully_defined():
+        assert(each in runtime_shape)
+        assert(len(runtime_shape[each]) == 1)
+        input_array = [int(op.outputs[0].dtype)]
+        input_array.extend(runtime_shape[each][0])
+        new_op = tg_module.tensor_generator_tmp(input_array, op.outputs[0].dtype)
         new_operations[each] = new_op
       elif each == "fc1/Variable_1":
+        assert(op.outputs[0].shape.is_fully_defined())
         new_op = tf.Variable(tf.zeros(op.outputs[0].shape), dtype = tf.float32, expected_shape = op.outputs[0].shape)
       else:
+        assert(op.outputs[0].shape.is_fully_defined())
         tmp_array = []
         tmp_array.append(int(op.outputs[0].dtype))
         for dim in op.outputs[0].shape:
           tmp_array.append(int(dim))
-        new_op = tg_module.tensor_generator(tmp_array, op.outputs[0].dtype)
+        new_op = tg_module.tensor_generator_tmp(tmp_array, op.outputs[0].dtype)
         new_operations[each] = new_op
 
   # update boundary nodes' inputs
