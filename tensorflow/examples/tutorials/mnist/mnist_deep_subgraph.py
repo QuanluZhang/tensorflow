@@ -186,12 +186,12 @@ def main(argv):
   tg_module = tf.load_op_library('/home/quzha/work/tensorflow/tensorflow/core/user_ops/tensor_generator.so')
   #print(dir(tg_module))
 
-  # create placeholder/constant for input node
   sys.path.append('/home/quzha/work/GraphPartition/')
   import parse_runtime_shape
   runtime_shape = parse_runtime_shape.parse_runtime_shape('/home/quzha/static_analysis/result/dump_output_shape.txt')
   #print(runtime_shape)
 
+  # create placeholder/constant for input node
   new_operations = dict()
   for each in subg_inputs:
     if name_type_map[each] == "_Arg":
@@ -205,30 +205,16 @@ def main(argv):
       new_const = tf.identity(op.outputs[0])
       new_operations[each] = new_const
     else:
-#      if each == "adam_optimizer/gradients/dropout/dropout/div_grad/Shape_1":
-#        assert(not op.outputs[0].shape.is_fully_defined())
-#        new_op = tg_module.tensor_generator_tmp([int(op.outputs[0].dtype), 0], op.outputs[0].dtype)
-#        new_operations[each] = new_op
-#      elif each == "adam_optimizer/gradients/dropout/dropout/div_grad/Sum_1":
-#        assert(not op.outputs[0].shape.is_fully_defined())
-#        new_op = tg_module.tensor_generator_tmp([int(op.outputs[0].dtype)], op.outputs[0].dtype)
-#        new_operations[each] = new_op
-#      elif each == "adam_optimizer/gradients/dropout/dropout/div_grad/RealDiv":
-#        assert(not op.outputs[0].shape.is_fully_defined())
-#        new_op = tg_module.tensor_generator_tmp([int(op.outputs[0].dtype), 50,1024], op.outputs[0].dtype)
-#        new_operations[each] = new_op
-#      elif each == "adam_optimizer/gradients/dropout/dropout/div_grad/Sum":
-#        assert(not op.outputs[0].shape.is_fully_defined())
-#        new_op = tg_module.tensor_generator_tmp([int(op.outputs[0].dtype), 50,1024], op.outputs[0].dtype)
-#        new_operations[each] = new_op
       if not op.outputs[0].shape.is_fully_defined():
         assert(each in runtime_shape)
         assert(len(runtime_shape[each]) == 1)
+        assert(name_type_map[each] != "VariableV2")
         input_array = [int(op.outputs[0].dtype)]
         input_array.extend(runtime_shape[each][0])
         new_op = tg_module.tensor_generator_tmp(input_array, op.outputs[0].dtype)
         new_operations[each] = new_op
-      elif each == "fc1/Variable_1":
+      #elif each == "fc1/Variable_1":
+      elif name_type_map[each] == "VariableV2":
         assert(op.outputs[0].shape.is_fully_defined())
         new_op = tf.Variable(tf.zeros(op.outputs[0].shape), dtype = tf.float32, expected_shape = op.outputs[0].shape)
       else:
@@ -248,7 +234,8 @@ def main(argv):
       # TODO: it is possible that :XX rather than :X
       assert(len(op.inputs[i].name.split(':')[-1]) == 1)
       if op.inputs[i].name[:-2] in new_operations:
-        if op.inputs[i].name[:-2] == "fc1/Variable_1":
+        #if op.inputs[i].name[:-2] == "fc1/Variable_1":
+        if name_type_map[op.inputs[i].name[:-2]] == "VariableV2":
           op._update_input(i, new_operations[op.inputs[i].name[:-2]].read_value())
         else:
           op._update_input(i, new_operations[op.inputs[i].name[:-2]])
@@ -258,6 +245,15 @@ def main(argv):
         predecessor_op = tf.get_default_graph().get_operation_by_name(op.inputs[i].name[:-2])
         if predecessor_op.type == 'Placeholder':
           new_pholders[op.inputs[i].name[:-2]] = op.inputs[i]
+
+  # get placeholder in subg_nodes(true_nodes), and put them in new_pholders
+  existing_pholder_in_subg = dict()
+  for each in subg_nodes:
+    if name_type_map[each] == "_Arg":
+      #existing_pholder_in_subg[each] = tf.get_default_graph().get_operation_by_name(each[5:-4])
+      segs = each.split('_')
+      pholder_tensor_name = '_'.join(segs[2:-2])
+      existing_pholder_in_subg[each] = tf.get_default_graph().get_tensor_by_name(pholder_tensor_name+":0")
 
   with tf.Session() as sess:
     feed_data = dict()
@@ -272,6 +268,9 @@ def main(argv):
       #else:
       #  feed_data[new_pholders[name]] = np.ndarray(shape = new_pholders[name].shape, dtype = new_pholders[name].dtype.as_numpy_dtype)
       feed_data[new_pholders[name]] = np.ndarray(shape = new_pholders[name].shape, dtype = new_pholders[name].dtype.as_numpy_dtype)
+    for name in existing_pholder_in_subg:
+      print("runtime_shape: ", runtime_shape[name][0])
+      feed_data[existing_pholder_in_subg[name]] = np.ndarray(shape = runtime_shape[name][0], dtype = float)
     sess.run(tf.global_variables_initializer())
     for i in range(10):
       sess.run(sink_op, feed_dict = feed_data)
@@ -291,7 +290,8 @@ def evaluate_subgraph(subgraph_file_path):
                       default='/tmp/tensorflow/mnist/input_data',
                       help='Directory for storing input data')
   FLAGS, unparsed = parser.parse_known_args()
-  res = tf.app.run(main=main, argv=[sys.argv[0]] + [subgraph_file_path] + unparsed)
+  #res = tf.app.run(main=main, argv=[sys.argv[0]] + [subgraph_file_path] + unparsed)
+  res = main(argv=[sys.argv[0]] + [subgraph_file_path])
   return res
 
 if __name__ == '__main__':
@@ -300,4 +300,4 @@ if __name__ == '__main__':
                       default='/tmp/tensorflow/mnist/input_data',
                       help='Directory for storing input data')
   FLAGS, unparsed = parser.parse_known_args()
-  tf.app.run(main=main, argv=[sys.argv[0]] + unparsed)
+  tf.app.run(main=main, argv=[sys.argv[0]] + ["/home/quzha/work/GraphPartition/subgraph_nodes.csv"] + unparsed)

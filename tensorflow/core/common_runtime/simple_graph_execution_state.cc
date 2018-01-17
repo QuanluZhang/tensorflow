@@ -241,10 +241,13 @@ Status SimpleGraphExecutionState::InitBaseGraph(
   std::unique_ptr<Graph> new_graph(new Graph(OpRegistry::Global()));
   GraphConstructorOptions opts;
   TF_RETURN_IF_ERROR(ConvertGraphDefToGraph(opts, *graph_def, new_graph.get()));
+  //printf("YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY: \n");
   for (const Node* n : new_graph->nodes()) {
+    //printf("%s %s\t", n->name().data(), n->type_string().data());
     VLOG(2) << "Mapping " << n->name() << " to " << n->cost_id();
     node_name_to_cost_id_map_[n->name()] = n->cost_id();
   }
+  //printf("\n");
   if (session_options_ &&
       session_options_->config.graph_options().place_pruned_graph()) {
     // Rewrite the graph before placement.

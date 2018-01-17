@@ -451,9 +451,12 @@ Status DirectSession::Run(const RunOptions& run_options,
   // Extract the inputs names for this run of the session.
   std::vector<string> input_tensor_names;
   input_tensor_names.reserve(inputs.size());
+  //printf("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX: ");
   for (const auto& it : inputs) {
     input_tensor_names.push_back(it.first);
+    //printf("%s\t", it.first.c_str());
   }
+  //printf("\n");
 
   if (run_options.inter_op_thread_pool() < 0 ||
       run_options.inter_op_thread_pool() >= thread_pools_.size()) {
@@ -1286,6 +1289,12 @@ Status DirectSession::CreateGraphs(
     TF_RETURN_IF_ERROR(
         execution_state->BuildGraph(subgraph_options, &client_graph));
   }
+
+  //printf("ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ: \n");
+  //for (Node* node : (&client_graph->graph)->op_nodes()) {
+  //  printf("%s %s\t", node->name().data(), node->type_string().data());
+  //}
+  //printf("\n");
 
   if (subgraph_options.feed_endpoints.size() !=
       client_graph->feed_types.size()) {
