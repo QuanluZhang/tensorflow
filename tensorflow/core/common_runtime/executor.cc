@@ -21,6 +21,10 @@ limitations under the License.
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 #include "tensorflow/core/common_runtime/costmodel_manager.h"
 #include "tensorflow/core/common_runtime/pending_counts.h"
@@ -2380,14 +2384,22 @@ void ExecutorState::FrameState::ActivateNodes(const NodeItem* item,
                                               EntryVector* outputs,
                                               TaggedNodeSeq* ready) {
   // quanlu: dump node and its output shape
-  bool dump_output_shape = true;
+  bool dump_output_shape = false;
   if (dump_output_shape) {
     string dump_file_name = "/home/quzha/static_analysis/result/dump_output_shape.txt";
+    string dump_tensor_file_name = "/home/quzha/static_analysis/result/dump_tensor_content.txt";
     FILE *dump_file_shape = fopen(dump_file_name.data(), "a");
+    int dump_file_tensor = open(dump_tensor_file_name.data(), O_WRONLY | O_APPEND | O_CREAT, 0644);
+    if (dump_file_tensor == -1) {
+      printf("open dump_file_tensor failed\n");
+      exit(-1);
+    }
     const Node *node = item->node;
     fprintf(dump_file_shape, "op[%s][%s][%s][%d]", node->type_string().data(), node->name().data(), node->assigned_device_name().data(), node->id());
+    std::vector<int> out_node_id_array;
     for (Node *out: node->out_nodes()) {
       fprintf(dump_file_shape, "\t%d", out->id());
+      out_node_id_array.push_back(out->id());
     }
     fprintf(dump_file_shape, "\n");
     const EdgeSet& out_edges = node->out_edges();
@@ -2406,14 +2418,76 @@ void ExecutorState::FrameState::ActivateNodes(const NodeItem* item,
       } else {
         t = out.ref;
       }
+      // quanlu: dump shape
       fprintf(dump_file_shape, "one_output");
       for (int j = 0; j < t->dims(); ++j) {
         int64 ds = t->dim_size(j);
-        fprintf(dump_file_shape, "\t%ld", ds);
+        fprintf(dump_file_shape, "\t%lld", ds);
       }
       fprintf(dump_file_shape, "\n");
+      // quanlu: dump tensor content
+      /*if (t == kEmptyTensor) {
+        printf("empty tensor\n");
+      }
+      else {
+        printf("non-empty tensor\n");
+      }
+      if (out.ref == nullptr) {
+        printf("not ref\n");
+      }
+      else {
+        printf("is ref\n");
+      }*/
+      //printf("dims: %d, %ld, %s, %s\n", t->dims(), t->NumElements(), node->name().data(), node->type_string().data());
+      // NOTE: in order to dump tensors' content, the graph should only run on CPUs.
+      if (t->IsInitialized() && t->NumElements() != 0) {
+        TensorProto tmp_proto;
+        //t->AsProtoField(&tmp_proto);
+        t->AsProtoTensorContent(&tmp_proto);
+        int src_id = node->id();
+        //int dst_id = out_node_id_array[i];
+        int output_index = i;
+        ssize_t ret = write(dump_file_tensor, &src_id, sizeof(src_id));
+        if (ret != sizeof(src_id)) { printf("src_id error\n"); exit(-1); }
+        //ret = write(dump_file_tensor, &dst_id, sizeof(dst_id));
+        //if (ret != sizeof(dst_id)) { printf("dst_id error\n"); exit(-1); }
+        ret = write(dump_file_tensor, &output_index, sizeof(output_index));
+        if (ret != sizeof(output_index)) { printf("output_index error\n"); exit(-1); }
+
+        size_t name_len = node->name().size();
+        ret = write(dump_file_tensor, &name_len, sizeof(name_len));
+        if (ret != sizeof(name_len)) { printf("name_len error\n"); exit(-1); }
+        ret = write(dump_file_tensor, node->name().data(), name_len);
+        if (ret != sizeof(name_len)) { printf("name error\n"); exit(-1); }
+
+        size_t proto_size = tmp_proto.ByteSizeLong();
+        ret = write(dump_file_tensor, &proto_size, sizeof(proto_size));
+        if (ret != sizeof(proto_size)) { printf("proto_size error\n"); exit(-1); }
+        tmp_proto.SerializeToFileDescriptor(dump_file_tensor);
+      }
+      /*// dump buf_ directly
+      if (t->IsInitialized() && t->NumElements() != 0) {
+        int src_id = node->id();
+        //int dst_id = out_node_id_array[i];
+        int output_index = i;
+        ssize_t ret = write(dump_file_tensor, &src_id, sizeof(src_id));
+        if (ret != sizeof(src_id)) { printf("src_id error\n"); exit(-1); }
+        //ret = write(dump_file_tensor, &dst_id, sizeof(dst_id));
+        //if (ret != sizeof(dst_id)) { printf("dst_id error\n"); exit(-1); }
+        ret = write(dump_file_tensor, &output_index, sizeof(output_index));
+        if (ret != sizeof(output_index)) { printf("output_index error\n"); exit(-1); }
+        void* ptr = nullptr;
+        size_t len = 0;
+        t->GetTensorBufContent(ptr, len);
+        ret = write(dump_file_tensor, &len, sizeof(len));
+        if (ret != sizeof(len)) { printf("proto_size error\n"); exit(-1); }
+        ret = write(dump_file_tensor, ptr, len);
+        if (ret != len) { printf("tensor content error, %d, %p, %d, %d\n", ret, ptr, len, errno); exit(-1); }
+      }*/
+
     }
     fclose(dump_file_shape);
+    close(dump_file_tensor);
   }
 
   const GraphView& gview = executor->gview_;

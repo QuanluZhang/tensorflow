@@ -729,6 +729,13 @@ void Tensor::AsProtoTensorContent(TensorProto* proto) const {
   }
 }
 
+// quanlu: customized function
+void Tensor::GetTensorBufContent(void* &ptr, size_t& len) const {
+  printf("buf_: %p\n", buf_);
+  ptr = buf_->data();
+  len = buf_->size();
+}
+
 size_t Tensor::TotalBytes() const {
   if (shape_.num_elements() == 0) return 0;
   CHECK(buf_) << "null buf_ with non-zero shape size " << shape_.num_elements();

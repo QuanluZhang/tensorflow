@@ -3,14 +3,20 @@
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/types.pb.h"
 #include "tensorflow/core/framework/register_types.h"
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 //#include "auxiliary_header.h"
+#define TENSOR_CONTENT_FILE "/home/quzha/static_analysis/result/dump_tensor_content.txt"
 
 using namespace tensorflow;
 
 
-REGISTER_OP("TensorGeneratorTmp")
+REGISTER_OP("TensorGeneratorTma")
     .Attr("T: type")
+    .Attr("tensor_name: string = 'null'")
     .Input("tensor_shape: int32")
     .Output("out_tensor: T") // what if data type is different
     .SetShapeFn([](::tensorflow::shape_inference::InferenceContext* c) {
@@ -20,11 +26,43 @@ REGISTER_OP("TensorGeneratorTmp")
     //.Doc(R"doc(Generate different type/shape of tensor according to input data)doc");
 
 template <typename T>
-class TensorGeneratorTmpOp : public OpKernel {
+class TensorGeneratorTmaOp : public OpKernel {
   public:
-    explicit TensorGeneratorTmpOp(OpKernelConstruction* context) : OpKernel(context) {}
+    explicit TensorGeneratorTmaOp(OpKernelConstruction* context) : OpKernel(context) {
+        OP_REQUIRES_OK(context, context->GetAttr("tensor_name", &tensor_name_));
+    }
 
     void Compute(OpKernelContext* context) override {
+        static std::map<std::string, TensorProto*> map_of_tensors;
+        if (map_of_tensors.size() == 0) {
+            int fd = open(TENSOR_CONTENT_FILE, O_RDONLY);
+            while (1) {
+                int src_id, output_index;
+                int ret = read(fd, &src_id, sizeof(src_id));
+                if (ret == 0) break;
+                if (ret != sizeof(src_id)) { printf("src_id error\n"); exit(-1); }
+                ret = read(fd, &output_index, sizeof(output_index));
+                if (ret != sizeof(output_index)) { printf("output_index error\n"); exit(-1); }
+
+                size_t name_len;
+                ret = read(fd, &name_len, sizeof(name_len));
+                if (ret != sizeof(name_len)) { printf("name_len error\n"); exit(-1); }
+                char src_op_name[1024];
+                ret = read(fd, src_op_name, name_len);
+                if (ret != name_len) { printf("name error\n"); exit(-1); }
+                src_op_name[name_len] = '\0';
+
+                size_t proto_size;
+                ret = read(fd, &proto_size, sizeof(proto_size));
+                if (ret != sizeof(proto_size)) { printf("proto_size error\n"); exit(-1); }
+                TensorProto* tmp_proto = new TensorProto();
+                tmp_proto->ParseFromFileDescriptor(fd);
+
+                map_of_tensors.emplace(src_op_name, tmp_proto);
+            }
+            close(fd);
+        }
+
         const Tensor& input_tensor = context->input(0);
         auto input = input_tensor.flat<int32>();
         CHECK_GE(input.size(), 1) << "input size " << input.size()
@@ -48,6 +86,15 @@ class TensorGeneratorTmpOp : public OpKernel {
         //new_shape.set_data_type_pub(DT_FLOAT);
         new_shape.set_data_type_pub(out_data_type);
         OP_REQUIRES_OK(context, context->allocate_output(0, new_shape, &output_tensor));
+        if (map_of_tensors.find(tensor_name_) != map_of_tensors.end()) {
+            if (!output_tensor->FromProto(*map_of_tensors[tensor_name_])) {
+                printf("Failed to parse TensorProto\n");
+                exit(-1);
+            }
+        }
+        else {
+            printf("there is no tensor content for this output_tensor");
+        }
         //auto output_flat = output_tensor->flat<float>();
 
         //const int N = input.size();
@@ -61,13 +108,15 @@ class TensorGeneratorTmpOp : public OpKernel {
     }
 
     //bool IsExpensive() override { return false; }
+  private:
+    std::string tensor_name_;
 };
 
 //REGISTER_KERNEL_BUILDER(Name("TensorGenerator").Device(DEVICE_CPU), TensorGeneratorOp);
 #define REGISTER_KERNEL(type)                                                   \
     REGISTER_KERNEL_BUILDER(                                                    \
-        Name("TensorGeneratorTmp").Device(DEVICE_CPU).TypeConstraint<type>("T"),   \
-        TensorGeneratorTmpOp<type>)
+        Name("TensorGeneratorTma").Device(DEVICE_CPU).TypeConstraint<type>("T"),   \
+        TensorGeneratorTmaOp<type>)
 
 TF_CALL_ALL_TYPES(REGISTER_KERNEL);
 
