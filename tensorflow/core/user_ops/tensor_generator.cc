@@ -33,7 +33,7 @@ class TensorGeneratorTmaOp : public OpKernel {
     }
 
     void Compute(OpKernelContext* context) override {
-        static std::map<std::string, TensorProto*> map_of_tensors;
+        static std::map<std::string, char*> map_of_tensors;
         if (map_of_tensors.size() == 0) {
             int fd = open(TENSOR_CONTENT_FILE, O_RDONLY);
             while (1) {
@@ -52,13 +52,22 @@ class TensorGeneratorTmaOp : public OpKernel {
                 if (ret != name_len) { printf("name error\n"); exit(-1); }
                 src_op_name[name_len] = '\0';
 
-                size_t proto_size;
+                /*size_t proto_size;
                 ret = read(fd, &proto_size, sizeof(proto_size));
                 if (ret != sizeof(proto_size)) { printf("proto_size error\n"); exit(-1); }
                 TensorProto* tmp_proto = new TensorProto();
                 tmp_proto->ParseFromFileDescriptor(fd);
+                printf("parsefromfiledescriptor\n");
+                map_of_tensors.emplace(src_op_name, tmp_proto);*/
 
-                map_of_tensors.emplace(src_op_name, tmp_proto);
+                size_t buf_size;
+                ret = read(fd, &buf_size, sizeof(buf_size));
+                if (ret != sizeof(buf_size)) { printf("buf_size error\n"); exit(-1); }
+                char* tmp_buf = new char[buf_size];
+                ret = read(fd, tmp_buf, buf_size);
+                if (ret != buf_size) { printf("buf error\n"); exit(-1); }
+
+                map_of_tensors.emplace(src_op_name, tmp_buf);
             }
             close(fd);
         }
@@ -84,6 +93,7 @@ class TensorGeneratorTmaOp : public OpKernel {
             new_shape.AddDim(input(i));
         }
         //new_shape.set_data_type_pub(DT_FLOAT);
+        printf("name: %s\n", tensor_name_.data());
         new_shape.set_data_type_pub(out_data_type);
         OP_REQUIRES_OK(context, context->allocate_output(0, new_shape, &output_tensor));
         if (map_of_tensors.find(tensor_name_) != map_of_tensors.end()) {

@@ -2384,7 +2384,7 @@ void ExecutorState::FrameState::ActivateNodes(const NodeItem* item,
                                               EntryVector* outputs,
                                               TaggedNodeSeq* ready) {
   // quanlu: dump node and its output shape
-  bool dump_output_shape = false;
+  bool dump_output_shape = true;
   if (dump_output_shape) {
     string dump_file_name = "/home/quzha/static_analysis/result/dump_output_shape.txt";
     string dump_tensor_file_name = "/home/quzha/static_analysis/result/dump_tensor_content.txt";
@@ -2440,6 +2440,7 @@ void ExecutorState::FrameState::ActivateNodes(const NodeItem* item,
       }*/
       //printf("dims: %d, %ld, %s, %s\n", t->dims(), t->NumElements(), node->name().data(), node->type_string().data());
       // NOTE: in order to dump tensors' content, the graph should only run on CPUs.
+      /*// dump buf_ through protobuf
       if (t->IsInitialized() && t->NumElements() != 0) {
         TensorProto tmp_proto;
         //t->AsProtoField(&tmp_proto);
@@ -2458,14 +2459,14 @@ void ExecutorState::FrameState::ActivateNodes(const NodeItem* item,
         ret = write(dump_file_tensor, &name_len, sizeof(name_len));
         if (ret != sizeof(name_len)) { printf("name_len error\n"); exit(-1); }
         ret = write(dump_file_tensor, node->name().data(), name_len);
-        if (ret != sizeof(name_len)) { printf("name error\n"); exit(-1); }
+        if (ret != name_len) { printf("name error\n"); exit(-1); }
 
         size_t proto_size = tmp_proto.ByteSizeLong();
         ret = write(dump_file_tensor, &proto_size, sizeof(proto_size));
         if (ret != sizeof(proto_size)) { printf("proto_size error\n"); exit(-1); }
         tmp_proto.SerializeToFileDescriptor(dump_file_tensor);
-      }
-      /*// dump buf_ directly
+      }*/
+      // dump buf_ directly
       if (t->IsInitialized() && t->NumElements() != 0) {
         int src_id = node->id();
         //int dst_id = out_node_id_array[i];
@@ -2483,8 +2484,7 @@ void ExecutorState::FrameState::ActivateNodes(const NodeItem* item,
         if (ret != sizeof(len)) { printf("proto_size error\n"); exit(-1); }
         ret = write(dump_file_tensor, ptr, len);
         if (ret != len) { printf("tensor content error, %d, %p, %d, %d\n", ret, ptr, len, errno); exit(-1); }
-      }*/
-
+      }
     }
     fclose(dump_file_shape);
     close(dump_file_tensor);
