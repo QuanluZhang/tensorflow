@@ -35,6 +35,7 @@ class TensorGeneratorTmaOp : public OpKernel {
     void Compute(OpKernelContext* context) override {
         static std::map<std::string, char*> map_of_tensors;
         if (map_of_tensors.size() == 0) {
+            printf("round one\n");
             int fd = open(TENSOR_CONTENT_FILE, O_RDONLY);
             while (1) {
                 int src_id, output_index;
@@ -93,17 +94,35 @@ class TensorGeneratorTmaOp : public OpKernel {
             new_shape.AddDim(input(i));
         }
         //new_shape.set_data_type_pub(DT_FLOAT);
-        printf("name: %s\n", tensor_name_.data());
+        //printf("name: %s\n", tensor_name_.data());
         new_shape.set_data_type_pub(out_data_type);
         OP_REQUIRES_OK(context, context->allocate_output(0, new_shape, &output_tensor));
-        if (map_of_tensors.find(tensor_name_) != map_of_tensors.end()) {
-            if (!output_tensor->FromProto(*map_of_tensors[tensor_name_])) {
-                printf("Failed to parse TensorProto\n");
-                exit(-1);
+        void* ptr;
+        size_t len;
+        if (output_tensor->GetTensorBufContent(ptr, len)) {
+            //printf("ptr: %p, len: %ld\n", ptr, len);
+            if (map_of_tensors.find(tensor_name_) != map_of_tensors.end()) {
+                /*if (!output_tensor->FromProto(*map_of_tensors[tensor_name_])) {
+                    printf("Failed to parse TensorProto\n");
+                    exit(-1);
+                }*/
+                // TODO: check content size
+                if (output_tensor->AssignTensorBufContent(map_of_tensors[tensor_name_])) {
+                }
+                else {
+                    printf("error: assign tensor buf content\n");
+                    exit(-1);
+                }
+            }
+            else {
+                printf("there is no tensor content for this output_tensor");
             }
         }
         else {
-            printf("there is no tensor content for this output_tensor");
+            if (!(input.size() == 2 && input(1) == 0)) {
+                printf("input size: %ld\n", input.size());
+                exit(-1);
+            }
         }
         //auto output_flat = output_tensor->flat<float>();
 

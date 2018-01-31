@@ -214,7 +214,9 @@ class Tensor {
   void AsProtoField(TensorProto* proto) const;
   void AsProtoTensorContent(TensorProto* proto) const;
 
-  void GetTensorBufContent(void* &ptr, size_t& len) const;
+  // quanlu: for dumping tensor's content
+  bool GetTensorBufContent(void* &ptr, size_t& len) const;
+  bool AssignTensorBufContent(void* ptr) const;
 
   /// \brief Return the tensor data as an `Eigen::Tensor` with the type and
   /// sizes of this `Tensor`.

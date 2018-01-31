@@ -730,10 +730,19 @@ void Tensor::AsProtoTensorContent(TensorProto* proto) const {
 }
 
 // quanlu: customized function
-void Tensor::GetTensorBufContent(void* &ptr, size_t& len) const {
-  printf("buf_: %p\n", buf_);
+bool Tensor::GetTensorBufContent(void* &ptr, size_t& len) const {
+  //printf("buf_: %p\n", buf_);
+  if (buf_ == nullptr) return false;
   ptr = buf_->data();
   len = buf_->size();
+  return true;
+}
+bool Tensor::AssignTensorBufContent(void* src_ptr) const {
+  if (buf_ == nullptr) return false;
+  void* dst_ptr = buf_->data();
+  size_t len = buf_->size();
+  memcpy(dst_ptr, src_ptr, len);
+  return true;
 }
 
 size_t Tensor::TotalBytes() const {
