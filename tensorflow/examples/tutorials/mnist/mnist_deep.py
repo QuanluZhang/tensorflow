@@ -177,7 +177,8 @@ def main(_):
     print('start initialize')
     sess.run(tf.global_variables_initializer())
     print('finish initialize')
-    for i in range(10000):
+    #for i in range(10000):
+    for i in range(1):
       batch = mnist.train.next_batch(50)
       if i % 100 == 0:
         print('start accuracy.eval')
@@ -188,8 +189,8 @@ def main(_):
       #print('batch_y:', batch[1].shape)
       train_step.run(feed_dict={x: batch[0], y_: batch[1], keep_prob: 0.5})
 
-    print('test accuracy %g' % accuracy.eval(feed_dict={
-        x: mnist.test.images, y_: mnist.test.labels, keep_prob: 1.0}))
+    #print('test accuracy %g' % accuracy.eval(feed_dict={
+    #    x: mnist.test.images, y_: mnist.test.labels, keep_prob: 1.0}))
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()

@@ -197,48 +197,81 @@ def main(argv):
     if name_type_map[each] == "_Arg":
       continue
     op = tf.get_default_graph().get_operation_by_name(each)
-    assert(len(op.outputs) == 1)
-    #print(len(op.outputs), op.outputs[0])
-    print("subg_inputs: ", each, " shape: ", op.outputs[0].shape)
-    if name_type_map[each] == "Const":
-      assert(op.outputs[0].shape.is_fully_defined())
-      new_const = tf.identity(op.outputs[0])
-      new_operations[each] = new_const
-    else:
-      if not op.outputs[0].shape.is_fully_defined():
-        assert(each in runtime_shape)
-        assert(len(runtime_shape[each]) == 1)
-        assert(name_type_map[each] != "VariableV2")
-        input_array = [int(op.outputs[0].dtype)]
-        input_array.extend(runtime_shape[each][0])
-        new_op = tg_module.tensor_generator_tmp(input_array, op.outputs[0].dtype)
-        new_operations[each] = new_op
-      #elif each == "fc1/Variable_1":
-      elif name_type_map[each] == "VariableV2":
-        assert(op.outputs[0].shape.is_fully_defined())
-        new_op = tf.Variable(tf.zeros(op.outputs[0].shape), dtype = tf.float32, expected_shape = op.outputs[0].shape)
+    for i in range(len(op.outputs)):
+      #print(len(op.outputs), op.outputs[0])
+      print("subg_inputs: ", each, " shape: ", op.outputs[i].shape)
+      if name_type_map[each] == "Const":
+        assert(op.outputs[i].shape.is_fully_defined())
+        new_const = tf.identity(op.outputs[i])
+        if each in new_operations:
+          new_operations[each].append(new_const)
+        else:
+          new_operations[each] = [new_const]
       else:
-        assert(op.outputs[0].shape.is_fully_defined())
-        tmp_array = []
-        tmp_array.append(int(op.outputs[0].dtype))
-        for dim in op.outputs[0].shape:
-          tmp_array.append(int(dim))
-        new_op = tg_module.tensor_generator_tmp(tmp_array, op.outputs[0].dtype)
-        new_operations[each] = new_op
+        if not op.outputs[i].shape.is_fully_defined():
+          assert(each in runtime_shape)
+          assert(len(runtime_shape[each]) > i)
+          assert(name_type_map[each] != "VariableV2")
+          input_array = [int(op.outputs[i].dtype)]
+          input_array.extend(runtime_shape[each][i])
+          new_op = tg_module.tensor_generator_tma(input_array, op.outputs[i].dtype, tensor_name = each)
+        #elif each == "fc1/Variable_1":
+        elif name_type_map[each] == "VariableV2":
+          assert(op.outputs[0].shape.is_fully_defined())
+          new_op = tf.Variable(tf.zeros(op.outputs[0].shape), dtype = tf.float32, expected_shape = op.outputs[0].shape)
+        else:
+          assert(op.outputs[0].shape.is_fully_defined())
+          tmp_array = []
+          tmp_array.append(int(op.outputs[0].dtype))
+          for dim in op.outputs[0].shape:
+            tmp_array.append(int(dim))
+          new_op = tg_module.tensor_generator_tma(tmp_array, op.outputs[0].dtype, tensor_name = each)
+          #new_operations[each] = new_op
+        if each in new_operations:
+          new_operations[each].append(new_op)
+        else:
+          new_operations[each] = [new_op]
 
   # update boundary nodes' inputs
   new_pholders = dict()
   for each in subg_bd_nodes:
     op = tf.get_default_graph().get_operation_by_name(each)
     for i in range(len(op.inputs)):
+      #print("**************************************************************")
+      #print(op.inputs[i].dtype)
+      #print(dir(op.inputs[i].dtype))
+      #print(op.inputs[i].dtype.name)
+      #print(dir(op.inputs[i]))
+#      if len(op.inputs[i].dtype.name) >= 3 and op.inputs[i].dtype.name[-3:] == 'ref':
+#        print("**************************************************************")
+#        if op.inputs[i].name[:-2] in new_operations:
+#          print("abc")
+#          if name_type_map[op.inputs[i].name[:-2]] == "VariableV2":
+#            print("def")
+#            print(type(new_operations[op.inputs[i].name[:-2]][output_index]))
+#            print(dir(new_operations[op.inputs[i].name[:-2]][output_index]))
+#            print(type(new_operations[op.inputs[i].name[:-2]][output_index]._ref()))
+#            print(dir(new_operations[op.inputs[i].name[:-2]][output_index]._ref()))
+#            print(type(new_operations[op.inputs[i].name[:-2]][output_index].read_value()))
+#            print(dir(new_operations[op.inputs[i].name[:-2]][output_index].read_value()))
+#          else:
+#            print("def2")
+#        else:
+#          print("abc2")
       # TODO: it is possible that :XX rather than :X
       assert(len(op.inputs[i].name.split(':')[-1]) == 1)
+      output_index = int(op.inputs[i].name.split(':')[-1])
       if op.inputs[i].name[:-2] in new_operations:
         #if op.inputs[i].name[:-2] == "fc1/Variable_1":
         if name_type_map[op.inputs[i].name[:-2]] == "VariableV2":
-          op._update_input(i, new_operations[op.inputs[i].name[:-2]].read_value())
+          #print("VariableV2: ", op.inputs[i].name)
+          assert(output_index == 0)
+          if len(op.inputs[i].dtype.name) >= 3 and op.inputs[i].dtype.name[-3:] == 'ref':
+            op._update_input(i, new_operations[op.inputs[i].name[:-2]][output_index]._ref())
+          else:
+            op._update_input(i, new_operations[op.inputs[i].name[:-2]][output_index].read_value())
         else:
-          op._update_input(i, new_operations[op.inputs[i].name[:-2]])
+          op._update_input(i, new_operations[op.inputs[i].name[:-2]][output_index])
       else:
         # if the input is not in new_operations, and its predecessor is a placeholder,
         # we still need to record it in order to feed data
@@ -300,4 +333,6 @@ if __name__ == '__main__':
                       default='/tmp/tensorflow/mnist/input_data',
                       help='Directory for storing input data')
   FLAGS, unparsed = parser.parse_known_args()
-  tf.app.run(main=main, argv=[sys.argv[0]] + ["/home/quzha/work/GraphPartition/subgraph_nodes.csv"] + unparsed)
+  #tf.app.run(main=main, argv=[sys.argv[0]] + ["/home/quzha/work/GraphPartition/subgraph_nodes.csv"] + unparsed)
+  #tf.app.run(main=main, argv=[sys.argv[0]] + ["/home/quzha/work/GraphPartition/one_branch_subgraph.csv"] + unparsed)
+  tf.app.run(main=main, argv=[sys.argv[0]] + ["/home/quzha/work/GraphPartition/failed_cases/critical_node_subgraph.csv1517490125.6881268"] + unparsed)
