@@ -1534,6 +1534,18 @@ class Operation(object):
     else:
       self._add_control_inputs([op])
 
+  # quanlu: remove control input if it is in op_dict
+  def _remove_control_input(self, op_dict):
+    i = 0
+    rm_list = []
+    for op in self._control_inputs:
+      if op.name in op_dict:
+        rm_list.append(i)
+      i += 1
+    for each in rm_list:
+      del self._control_inputs[each]
+    return len(rm_list)
+
   # Methods below are used when building the NodeDef and Graph proto.
   def _recompute_node_def(self):
     del self._node_def.input[:]

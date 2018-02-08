@@ -181,6 +181,8 @@ def main(argv):
 
   # get sink op
   sink_op = tf.get_default_graph().get_operation_by_name(subg_sink)
+  #print(dir(sink_op))
+  #return
 
   # load customized op
   tg_module = tf.load_op_library('/home/quzha/work/tensorflow/tensorflow/core/user_ops/tensor_generator.so')
@@ -195,6 +197,12 @@ def main(argv):
   new_operations = dict()
   for each in subg_inputs:
     if name_type_map[each] == "_Arg":
+      continue
+    if name_type_map[each] == "NoOp":
+      noop = tf.no_op()
+      assert(not each in new_operations)
+      new_operations[each] = [noop]
+      print("-------------------------NoOp-----------------------------")
       continue
     op = tf.get_default_graph().get_operation_by_name(each)
     for i in range(len(op.outputs)):
@@ -273,11 +281,19 @@ def main(argv):
         else:
           op._update_input(i, new_operations[op.inputs[i].name[:-2]][output_index])
       else:
-        # if the input is not in new_operations, and its predecessor is a placeholder,
+        # if the input is not in new_operations, and its predecessor is a placeholder (Note: or NoOp),
         # we still need to record it in order to feed data
+        print("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX", op.inputs[i].name[:-2])
         predecessor_op = tf.get_default_graph().get_operation_by_name(op.inputs[i].name[:-2])
         if predecessor_op.type == 'Placeholder':
           new_pholders[op.inputs[i].name[:-2]] = op.inputs[i]
+
+  # update control inputs
+  for each in subg_bd_nodes:
+    op = tf.get_default_graph().get_operation_by_name(each)
+    rm_num = op._remove_control_input(new_operations)
+    if rm_num > 0:
+      print("******************NoOp********************: ", rm_num)
 
   # get placeholder in subg_nodes(true_nodes), and put them in new_pholders
   existing_pholder_in_subg = dict()
@@ -335,4 +351,5 @@ if __name__ == '__main__':
   FLAGS, unparsed = parser.parse_known_args()
   #tf.app.run(main=main, argv=[sys.argv[0]] + ["/home/quzha/work/GraphPartition/subgraph_nodes.csv"] + unparsed)
   #tf.app.run(main=main, argv=[sys.argv[0]] + ["/home/quzha/work/GraphPartition/one_branch_subgraph.csv"] + unparsed)
-  tf.app.run(main=main, argv=[sys.argv[0]] + ["/home/quzha/work/GraphPartition/failed_cases/critical_node_subgraph.csv1517490125.6881268"] + unparsed)
+  #tf.app.run(main=main, argv=[sys.argv[0]] + ["/home/quzha/work/GraphPartition/failed_cases/one_branch_subgraph.csv1517651679.4963002"] + unparsed)
+  tf.app.run(main=main, argv=[sys.argv[0]] + ["/home/quzha/work/GraphPartition/failed_cases/one_branch_subgraph.csv1517651686.2848566"] + unparsed)
