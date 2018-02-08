@@ -1544,6 +1544,7 @@ class Operation(object):
       i += 1
     for each in rm_list:
       del self._control_inputs[each]
+    self._recompute_node_def()
     return len(rm_list)
 
   # Methods below are used when building the NodeDef and Graph proto.
