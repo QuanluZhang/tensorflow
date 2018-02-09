@@ -1536,14 +1536,12 @@ class Operation(object):
 
   # quanlu: remove control input if it is in op_dict
   def _remove_control_input(self, op_dict):
-    i = 0
     rm_list = []
     for op in self._control_inputs:
       if op.name in op_dict:
-        rm_list.append(i)
-      i += 1
+        rm_list.append(op)
     for each in rm_list:
-      del self._control_inputs[each]
+      self._control_inputs.remove(each)
     self._recompute_node_def()
     return len(rm_list)
 

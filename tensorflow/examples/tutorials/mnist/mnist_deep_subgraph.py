@@ -283,7 +283,7 @@ def main(argv):
       else:
         # if the input is not in new_operations, and its predecessor is a placeholder (Note: or NoOp),
         # we still need to record it in order to feed data
-        print("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX", op.inputs[i].name[:-2])
+        #print("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX", op.inputs[i].name[:-2])
         predecessor_op = tf.get_default_graph().get_operation_by_name(op.inputs[i].name[:-2])
         if predecessor_op.type == 'Placeholder':
           new_pholders[op.inputs[i].name[:-2]] = op.inputs[i]
@@ -292,8 +292,8 @@ def main(argv):
   for each in subg_bd_nodes:
     op = tf.get_default_graph().get_operation_by_name(each)
     rm_num = op._remove_control_input(new_operations)
-    if rm_num > 0:
-      print("******************NoOp********************: ", rm_num)
+    #if rm_num > 0:
+    #  print("******************NoOp********************: ", rm_num)
 
   # get placeholder in subg_nodes(true_nodes), and put them in new_pholders
   existing_pholder_in_subg = dict()
@@ -310,7 +310,12 @@ def main(argv):
       if (name in name_type_map) and (name_type_map[name] == "Const"):
         assert(False)
         continue
-      assert(new_pholders[name].shape.dims != None)
+      # TODO: this is a temporary solution, we assume if dims is None, it is scalar
+      if new_pholders[name].shape.dims == None:
+        # TODO: what value do we assign to this placeholder???
+        feed_data[new_pholders[name]] = 0.5
+        continue
+      #assert(new_pholders[name].shape.dims != None)
       #if new_pholders[name].shape.dims == None:
       #  print("unknown shape: ", new_pholders[name].shape.dims)
       #  feed_data[new_pholders[name]] = np.ndarray(shape = (1), dtype = new_pholders[name].dtype.as_numpy_dtype)
@@ -352,4 +357,4 @@ if __name__ == '__main__':
   #tf.app.run(main=main, argv=[sys.argv[0]] + ["/home/quzha/work/GraphPartition/subgraph_nodes.csv"] + unparsed)
   #tf.app.run(main=main, argv=[sys.argv[0]] + ["/home/quzha/work/GraphPartition/one_branch_subgraph.csv"] + unparsed)
   #tf.app.run(main=main, argv=[sys.argv[0]] + ["/home/quzha/work/GraphPartition/failed_cases/one_branch_subgraph.csv1517651679.4963002"] + unparsed)
-  tf.app.run(main=main, argv=[sys.argv[0]] + ["/home/quzha/work/GraphPartition/failed_cases/one_branch_subgraph.csv1517651686.2848566"] + unparsed)
+  tf.app.run(main=main, argv=[sys.argv[0]] + ["/home/quzha/work/GraphPartition/failed_cases/critical_node_subgraph.csv1518075611.4534326"] + unparsed)
