@@ -2412,7 +2412,7 @@ void ExecutorState::FrameState::ActivateNodes(const NodeItem* item,
       const int src_slot = e.output_slot;
       fprintf(dump_file_shape, "edge: %d ", dst_id);
       fprintf(dump_file_shape, "{");
-      const Entry& out = (*output)[src_slot];
+      const Entry& out = (*outputs)[src_slot];
       const Tensor* t;
       if(!out.has_value){
         t = kEmptyTensor;
@@ -2519,7 +2519,6 @@ void ExecutorState::FrameState::ActivateNodes(const NodeItem* item,
         if (ret != len) { printf("tensor content error, %d, %p, %d, %d\n", ret, ptr, len, errno); exit(-1); }
       }
 */
-    }
     fclose(dump_file_shape);
     close(dump_file_tensor);
   }
