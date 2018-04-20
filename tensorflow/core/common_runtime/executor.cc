@@ -2396,35 +2396,61 @@ void ExecutorState::FrameState::ActivateNodes(const NodeItem* item,
     }
     const Node *node = item->node;
     fprintf(dump_file_shape, "op[%s][%s][%s][%d]", node->type_string().data(), node->name().data(), node->assigned_device_name().data(), node->id());
-    std::vector<int> out_node_id_array;
-    for (Node *out: node->out_nodes()) {
-      fprintf(dump_file_shape, "\t%d", out->id());
-      out_node_id_array.push_back(out->id());
-    }
+    // std::vector<int> out_node_id_array;
+    // for (Node *out: node->out_nodes()) {
+    //   fprintf(dump_file_shape, "\t%d", out->id());
+    //   out_node_id_array.push_back(out->id());
+    // }
     fprintf(dump_file_shape, "\n");
-    const EdgeSet& out_edges = node->out_edges();
-    fprintf(dump_file_shape, "edge");
-    for (EdgeSet::const_iterator iter = out_edges.begin(); iter != out_edges.end(); iter++) {
-        fprintf(dump_file_shape, "\t%d", (*iter)->src_output());
-    }
-    fprintf(dump_file_shape,"\n");
-    for (int i = 0; i < item->num_outputs; ++i) {
-      const Entry& out = ((*outputs)[i]);
-      Tensor const * t;
-      if (!out.has_value) {
+    
+    //yunteng: get che output and their shape
+    const EdgeInfo* edges = item->output_edge_list();
+    const size_t num_output_edges = item->num_output_edges;
+    for (size_t out_index = 0; out_index < num_output_edges; out_index++){
+      const EdgeInfo& e = edges[out_index];
+      const int dst_id = e.dst_id;
+      const int src_slot = e.output_slot;
+      fprintf(dump_file_shape, "edge: %d ", dst_id);
+      fprintf(dump_file_shape, "{");
+      const Entry& out = (*output)[src_slot];
+      const Tensor* t;
+      if(!out.has_value){
         t = kEmptyTensor;
-      } else if (out.ref == nullptr) {
-        t = out.val.get();
-      } else {
+      }else if(out.ref == nullptr){
+        t =out.val.get();
+      }else{
         t = out.ref;
       }
-      // quanlu: dump shape
-      fprintf(dump_file_shape, "one_output");
-      for (int j = 0; j < t->dims(); ++j) {
+      for(int j = 0; j < t->dims(); j++){
         int64 ds = t->dim_size(j);
-        fprintf(dump_file_shape, "\t%lld", ds);
+        fprintf(dump_file_shape, "%d ", ds);
       }
-      fprintf(dump_file_shape, "\n");
+      fprintf(dump_file_shape, "}\n");
+    }
+
+    // const EdgeSet& out_edges = node->out_edges();
+    // fprintf(dump_file_shape, "edge");
+    // for (EdgeSet::const_iterator iter = out_edges.begin(); iter != out_edges.end(); iter++) {
+    //     fprintf(dump_file_shape, "\t%d", (*iter)->src_output());
+    // }
+    // fprintf(dump_file_shape,"\n");
+    // for (int i = 0; i < item->num_outputs; ++i) {
+    //   const Entry& out = ((*outputs)[i]);
+    //   Tensor const * t;
+    //   if (!out.has_value) {
+    //     t = kEmptyTensor;
+    //   } else if (out.ref == nullptr) {
+    //     t = out.val.get();
+    //   } else {
+    //     t = out.ref;
+    //   }
+    //   // quanlu: dump shape
+    //   fprintf(dump_file_shape, "one_output");
+    //   for (int j = 0; j < t->dims(); ++j) {
+    //     int64 ds = t->dim_size(j);
+    //     fprintf(dump_file_shape, "\t%lld", ds);
+    //   }
+    //   fprintf(dump_file_shape, "\n");
       // quanlu: dump tensor content
       /*if (t == kEmptyTensor) {
         printf("empty tensor\n");
@@ -2467,7 +2493,7 @@ void ExecutorState::FrameState::ActivateNodes(const NodeItem* item,
         tmp_proto.SerializeToFileDescriptor(dump_file_tensor);
       }*/
       // dump buf_ directly
-      if (t->IsInitialized() && t->NumElements() != 0) {
+/*      if (t->IsInitialized() && t->NumElements() != 0) {
         int src_id = node->id();
         //int dst_id = out_node_id_array[i];
         int output_index = i;
@@ -2492,6 +2518,7 @@ void ExecutorState::FrameState::ActivateNodes(const NodeItem* item,
         ret = write(dump_file_tensor, ptr, len);
         if (ret != len) { printf("tensor content error, %d, %p, %d, %d\n", ret, ptr, len, errno); exit(-1); }
       }
+*/
     }
     fclose(dump_file_shape);
     close(dump_file_tensor);
