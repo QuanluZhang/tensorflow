@@ -2411,21 +2411,26 @@ void ExecutorState::FrameState::ActivateNodes(const NodeItem* item,
       const int dst_id = e.dst_id;
       const int src_slot = e.output_slot;
       fprintf(dump_file_shape, "edge: %d ", dst_id);
-      fprintf(dump_file_shape, "{");
-      const Entry& out = (*outputs)[src_slot];
-      const Tensor* t;
-      if(!out.has_value){
-        t = kEmptyTensor;
-      }else if(out.ref == nullptr){
-        t =out.val.get();
+      if (src_slot == Graph::kControlSlot){//src_slot=-1, so that it is a control edge
+        fprintf(dump_file_shape, "{-1}\n");
       }else{
-        t = out.ref;
+        fprintf(dump_file_shape, "{");
+        const Entry& out = (*outputs)[src_slot];
+        const Tensor* t;
+        if(!out.has_value){
+          t = kEmptyTensor;
+        }else if(out.ref == nullptr){
+          t =out.val.get();
+        }else{
+          t = out.ref;
+        }
+        for(int j = 0; j < t->dims(); j++){
+          int64 ds = t->dim_size(j);
+          fprintf(dump_file_shape, "%d ", ds);
+        }
+        fprintf(dump_file_shape, "}\n");
       }
-      for(int j = 0; j < t->dims(); j++){
-        int64 ds = t->dim_size(j);
-        fprintf(dump_file_shape, "%d ", ds);
-      }
-      fprintf(dump_file_shape, "}\n");
+      
     }
 
     // const EdgeSet& out_edges = node->out_edges();
